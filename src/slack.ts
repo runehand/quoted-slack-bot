@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { WebClient, type View } from "@slack/web-api";
-import { buildDemoCopy, buildMockApiResponse, getDemoPosts } from "./demo-data";
+import { analyzeRequestMatch, buildDemoCopy, buildMockApiResponse, getDemoPosts } from "./demo-data";
 import { getConfig } from "./config";
 import {
   appendActionLog,
@@ -492,6 +492,7 @@ export async function handleInteraction(
       linkedUser: null
     };
 
+    const match = analyzeRequestMatch(requestInput.mode, requestInput, getDemoPosts());
     const copy = buildDemoCopy(requestInput, config.demoRequestBaseUrl, null);
     recordActionLog({
       action: "slack.modal_submit",
@@ -503,10 +504,37 @@ export async function handleInteraction(
       details: {
         mode: privateMetadata.mode,
         title,
+        searchText: match.searchText,
+        searchTokens: match.searchTokens,
         deadline,
         category,
         requestId: copy.requestId,
         requestUrl: copy.requestUrl
+      }
+    });
+
+    recordActionLog({
+      action: "slack.request_match",
+      source: "slack",
+      status: match.matchedPostScore > 0 ? "ok" : "error",
+      summary:
+        match.matchedPostScore > 0
+          ? `Found a reply candidate: ${match.matchedPost.title}.`
+          : "No strong reply candidate was found for the request.",
+      slackTeamId: privateMetadata.teamId,
+      slackUserId: privateMetadata.userId,
+      details: {
+        mode: privateMetadata.mode,
+        title,
+        searchText: match.searchText,
+        searchTokens: match.searchTokens,
+        matchedPost: {
+          id: match.matchedPost.id,
+          title: match.matchedPost.title,
+          score: match.matchedPostScore,
+          mode: match.matchedPost.mode
+        },
+        scores: match.allScores
       }
     });
 
