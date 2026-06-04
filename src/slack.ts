@@ -232,9 +232,9 @@ function buildSuccessView(
           type: "mrkdwn",
           text:
             `*${requestLabel} submitted*\n\n` +
-            `*Topic:* ${input.title}\n` +
-            `*Deadline:* ${input.deadline}\n` +
-            `*Category:* ${input.category}\n\n` +
+            `*Matched candidate:* ${copy.matchedPost.title}\n` +
+            `*Candidate summary:* ${copy.matchedPost.summary}\n` +
+            `*Score:* ${copy.matchedPostScore}\n\n` +
             `View request: ${copy.requestUrl}`
         }
       },
@@ -356,10 +356,10 @@ async function postSubmissionMessage(
     const response = await slackClient.chat.postMessage({
       channel: channelId,
       text:
-        `${input.mode === "experts" ? "Call for Experts" : "Call for Products"} submitted.\n` +
-        `Topic: ${input.title}\n` +
-        `Deadline: ${input.deadline}\n` +
-        `Category: ${input.category}\n` +
+        `Matched candidate for ${input.mode === "experts" ? "Call for Experts" : "Call for Products"}:\n` +
+        `${copy.matchedPost.title}\n` +
+        `${copy.matchedPost.summary}\n` +
+        `Score: ${copy.matchedPostScore}\n` +
         `View request: ${copy.requestUrl}`
     });
 
@@ -376,6 +376,12 @@ async function postSubmissionMessage(
         requestUrl: copy.requestUrl,
         mode: input.mode,
         title: input.title,
+        matchedPost: {
+          id: copy.matchedPost.id,
+          title: copy.matchedPost.title,
+          score: copy.matchedPostScore,
+          mode: copy.matchedPost.mode
+        },
         slackChannel: response.channel ?? null,
         slackTs: response.ts ?? null
       }
@@ -395,6 +401,12 @@ async function postSubmissionMessage(
         requestUrl: copy.requestUrl,
         mode: input.mode,
         title: input.title,
+        matchedPost: {
+          id: copy.matchedPost.id,
+          title: copy.matchedPost.title,
+          score: copy.matchedPostScore,
+          mode: copy.matchedPost.mode
+        },
         error: slackError
       }
     });
@@ -546,6 +558,12 @@ export async function handleInteraction(
         title,
         searchText: match.searchText,
         searchTokens: match.searchTokens,
+        matchedPost: {
+          id: match.matchedPost.id,
+          title: match.matchedPost.title,
+          score: match.matchedPostScore,
+          mode: match.matchedPost.mode
+        },
         deadline,
         category,
         requestId: copy.requestId,
