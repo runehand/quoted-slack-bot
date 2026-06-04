@@ -1,0 +1,8 @@
+[
+  {
+    "slack_team_id": "T123",
+    "slack_user_id": "U456",
+    "qwoted_user_id": "demo-user-001",
+    "email": "reporter@example.com"
+  }
+]

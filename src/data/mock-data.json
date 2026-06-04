@@ -1,0 +1,141 @@
+{
+  "users": [
+    {
+      "id": "demo-user-001",
+      "name": "Avery Chen",
+      "role": "Reporter",
+      "email": "reporter@example.com",
+      "expertise": ["energy", "policy", "markets"]
+    },
+    {
+      "id": "demo-user-002",
+      "name": "Jordan Miles",
+      "role": "Editor",
+      "email": "editor@example.com",
+      "expertise": ["breaking news", "investigations"]
+    },
+    {
+      "id": "demo-user-003",
+      "name": "Riley Patel",
+      "role": "Producer",
+      "email": "producer@example.com",
+      "expertise": ["tv", "live interviews"]
+    },
+    {
+      "id": "demo-user-004",
+      "name": "Morgan Lewis",
+      "role": "Reporter",
+      "email": "morgan@example.com",
+      "expertise": ["health", "science"]
+    },
+    {
+      "id": "demo-user-005",
+      "name": "Casey Nguyen",
+      "role": "Assignment Editor",
+      "email": "casey@example.com",
+      "expertise": ["business", "local news"]
+    }
+  ],
+  "posts": [
+    {
+      "id": "post-001",
+      "title": "Gas prices and household budgets",
+      "summary": "A reporter is looking for economists or energy experts to explain the latest price changes.",
+      "mode": "experts",
+      "requestedBy": "Avery Chen",
+      "deadline": "Friday",
+      "category": "Newsroom",
+      "status": "open"
+    },
+    {
+      "id": "post-002",
+      "title": "Best laptop for remote newsroom work",
+      "summary": "A reporter wants recommendations for reliable laptops for travel and editing.",
+      "mode": "products",
+      "requestedBy": "Jordan Miles",
+      "deadline": "Monday",
+      "category": "Tech",
+      "status": "open"
+    },
+    {
+      "id": "post-003",
+      "title": "Small business lending trends",
+      "summary": "Looking for banking experts and economists who can speak about credit conditions.",
+      "mode": "experts",
+      "requestedBy": "Casey Nguyen",
+      "deadline": "Wednesday",
+      "category": "Finance",
+      "status": "answered"
+    },
+    {
+      "id": "post-004",
+      "title": "Wireless microphone recommendations",
+      "summary": "A newsroom producer is comparing microphones for field interviews.",
+      "mode": "products",
+      "requestedBy": "Riley Patel",
+      "deadline": "Today",
+      "category": "Gear",
+      "status": "open"
+    },
+    {
+      "id": "post-005",
+      "title": "Healthcare staffing shortages",
+      "summary": "A health reporter needs hospital administrators or workforce experts.",
+      "mode": "experts",
+      "requestedBy": "Morgan Lewis",
+      "deadline": "Thursday",
+      "category": "Health",
+      "status": "pending"
+    },
+    {
+      "id": "post-006",
+      "title": "Best podcast recorder",
+      "summary": "A producer wants a portable recorder with clean audio and easy file transfer.",
+      "mode": "products",
+      "requestedBy": "Riley Patel",
+      "deadline": "Friday",
+      "category": "Audio",
+      "status": "open"
+    },
+    {
+      "id": "post-007",
+      "title": "Local housing affordability",
+      "summary": "A reporter is looking for real estate or policy experts on rent pressure.",
+      "mode": "experts",
+      "requestedBy": "Avery Chen",
+      "deadline": "Tuesday",
+      "category": "Housing",
+      "status": "answered"
+    },
+    {
+      "id": "post-008",
+      "title": "Mobile hotspot devices",
+      "summary": "A field reporter wants a strong hotspot for travel and live coverage.",
+      "mode": "products",
+      "requestedBy": "Casey Nguyen",
+      "deadline": "Next week",
+      "category": "Connectivity",
+      "status": "open"
+    },
+    {
+      "id": "post-009",
+      "title": "Climate change impact on agriculture",
+      "summary": "Looking for agriculture economists and climate scientists for a deadline story.",
+      "mode": "experts",
+      "requestedBy": "Morgan Lewis",
+      "deadline": "Friday",
+      "category": "Environment",
+      "status": "open"
+    },
+    {
+      "id": "post-010",
+      "title": "Desk chair for long edit days",
+      "summary": "An editor wants a comfortable office chair with strong lumbar support.",
+      "mode": "products",
+      "requestedBy": "Jordan Miles",
+      "deadline": "Monday",
+      "category": "Office",
+      "status": "answered"
+    }
+  ]
+}

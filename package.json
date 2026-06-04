@@ -1,0 +1,23 @@
+{
+  "name": "qwoted-slack-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal Qwoted Slack bot demo for AWS Lambda.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.js",
+    "vercel-build": "npm run build",
+    "clean": "powershell -NoProfile -Command \"if (Test-Path dist) { Remove-Item dist -Recurse -Force }\""
+  },
+  "dependencies": {
+    "@slack/web-api": "^7.8.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
