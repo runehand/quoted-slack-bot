@@ -261,13 +261,6 @@ async function postDemoMessages(
       }
     ]
   });
-
-  if (!input.linkedUser) {
-    await slackClient.chat.postMessage({
-      channel,
-      text: `Linked user lookup for ${teamId}/${userId} could not be confirmed.`
-    });
-  }
 }
 
 export async function handleSlashCommand(
@@ -344,7 +337,6 @@ export async function handleInteraction(
     const audience = extractValue(state as NonNullable<NonNullable<SlackInteractionPayload["view"]>["state"]>, "audience");
     const deadline = extractValue(state as NonNullable<NonNullable<SlackInteractionPayload["view"]>["state"]>, "deadline");
     const category = extractValue(state as NonNullable<NonNullable<SlackInteractionPayload["view"]>["state"]>, "category");
-    const linkedUser = await findLinkedUser(privateMetadata.teamId, privateMetadata.userId);
 
     const requestInput: DemoRequestInput = {
       mode: privateMetadata.mode,
@@ -353,14 +345,14 @@ export async function handleInteraction(
       audience,
       deadline,
       category,
-      linkedUser
+      linkedUser: null
     };
 
-    const copy = buildDemoCopy(requestInput, config.demoRequestBaseUrl, linkedUser);
+    const copy = buildDemoCopy(requestInput, config.demoRequestBaseUrl, null);
 
     if (config.slackBotToken) {
       const client = new WebClient(config.slackBotToken);
-      await postDemoMessages(client, requestInput, copy, privateMetadata.teamId, privateMetadata.userId);
+      void postDemoMessages(client, requestInput, copy, privateMetadata.teamId, privateMetadata.userId).catch(() => undefined);
     }
 
     return {
