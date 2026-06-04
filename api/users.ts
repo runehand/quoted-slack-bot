@@ -1,5 +1,5 @@
-import { sendVercelRoute } from "./_shared";
+import { getDemoUsers } from "../src/demo-data";
 
-export default async function handler(request: Request): Promise<Response> {
-  return sendVercelRoute(request, "/api/users");
+export function GET(): Response {
+  return Response.json({ users: getDemoUsers() });
 }

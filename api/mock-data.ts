@@ -1,5 +1,5 @@
-import { sendVercelRoute } from "./_shared";
+import { buildMockApiResponse } from "../src/demo-data";
 
-export default async function handler(request: Request): Promise<Response> {
-  return sendVercelRoute(request, "/api/mock-data");
+export function GET(): Response {
+  return Response.json(buildMockApiResponse());
 }
