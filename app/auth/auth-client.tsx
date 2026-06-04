@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type User = {
@@ -14,11 +14,7 @@ type User = {
 export function AuthClient() {
   const searchParams = useSearchParams();
   const nextUrl = searchParams.get("next") ?? "/connect";
-  const error = searchParams.get("error");
-  const success = searchParams.get("success");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-
-  const authLink = useMemo(() => `/auth?next=${encodeURIComponent(nextUrl)}`, [nextUrl]);
 
   useEffect(() => {
     let active = true;
@@ -58,20 +54,20 @@ export function AuthClient() {
           </div>
           <div>
             <p className="eyebrow">Qwoted access</p>
-            <h1>Secure account access for newsroom workflows</h1>
+            <h1>Sign in or create an account</h1>
             <p className="muted">
-              Sign in to manage posts, link Slack identities, and keep request handling tied to a real user session.
+              Use a dedicated auth page for each path. Keep the session tied to the newsroom workflow before linking Slack.
             </p>
           </div>
 
           <div className="grid two">
             <article className="notice">
-              <strong>Session-based auth</strong>
-              <div className="muted">Password-backed sign in with server-side session cookies.</div>
+              <strong>Sign in</strong>
+              <div className="muted">Return users continue to a Slack linking step or the posts page.</div>
             </article>
             <article className="notice">
-              <strong>Slack identity linking</strong>
-              <div className="muted">Connect the signed-in account to a Slack team and user ID.</div>
+              <strong>Create account</strong>
+              <div className="muted">New users create a workspace identity before connecting Slack.</div>
             </article>
           </div>
 
@@ -85,12 +81,10 @@ export function AuthClient() {
               </div>
             </div>
           ) : null}
-          {error ? <div className="notice bad">{error}</div> : null}
-          {success ? <div className="notice good">{success}</div> : null}
         </div>
 
         <div className="panel card stack">
-          <p className="eyebrow">Account status</p>
+          <p className="eyebrow">Session status</p>
           {currentUser ? (
             <>
               <h2>{currentUser.name}</h2>
@@ -100,15 +94,11 @@ export function AuthClient() {
                 <br />
                 Slack user: {currentUser.slackUserId ?? "not linked"}
               </div>
-              <form method="post" action="/api/auth/logout">
-                <button type="submit">Sign out</button>
-              </form>
             </>
           ) : (
             <>
-              <h2>Ready when you are</h2>
-              <p className="muted">Create an account or sign in to continue to Slack linking.</p>
-              <div className="notice">After sign in, you’ll be redirected to <code>{nextUrl}</code>.</div>
+              <h2>No active session</h2>
+              <p className="muted">Choose sign in or create account to continue.</p>
             </>
           )}
         </div>
@@ -116,49 +106,14 @@ export function AuthClient() {
 
       <section className="panel card stack">
         <div className="grid two">
-          <div>
-            <p className="eyebrow">Access controls</p>
-            <h2>Sign in or create an account</h2>
-          </div>
-          <div className="muted">Choose the path that matches your workflow. Both use the same session layer.</div>
-        </div>
-
-        <div className="grid two">
-          <form method="post" action="/api/auth/register">
-            <h2>Create account</h2>
-            <label>
-              Full name
-              <input name="name" placeholder="Jordan Lee" required />
-            </label>
-            <label>
-              Work email
-              <input name="email" type="email" placeholder="jordan@example.com" required />
-            </label>
-            <label>
-              Password
-              <input name="password" type="password" required />
-            </label>
-            <input type="hidden" name="next" value={nextUrl} />
-            <button type="submit">Create account</button>
-          </form>
-
-          <form method="post" action="/api/auth/login">
-            <h2>Sign in</h2>
-            <label>
-              Email
-              <input name="email" type="email" placeholder="jordan@example.com" required />
-            </label>
-            <label>
-              Password
-              <input name="password" type="password" required />
-            </label>
-            <input type="hidden" name="next" value={nextUrl} />
-            <button type="submit">Sign in</button>
-          </form>
-        </div>
-
-        <div className="notice">
-          Need Slack linking after sign in? Return to <a href={authLink}>this access page</a>.
+          <a className="notice" href={`/auth/sign-in?next=${encodeURIComponent(nextUrl)}`}>
+            <strong>Sign in</strong>
+            <div className="muted">Use an existing Qwoted account.</div>
+          </a>
+          <a className="notice" href={`/auth/sign-up?next=${encodeURIComponent(nextUrl)}`}>
+            <strong>Create account</strong>
+            <div className="muted">Register a new Qwoted account.</div>
+          </a>
         </div>
       </section>
     </main>

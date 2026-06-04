@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { MongoClient, ObjectId, type Collection } from "mongodb";
 import { getConfig } from "./config";
 import { DemoPost, LinkedUser, RegisteredUser, RequestMode } from "./types";
+import { seedPosts } from "./seed-data";
 
 type UserDocument = {
   _id?: ObjectId;
@@ -164,6 +165,29 @@ async function getPostsCollection(): Promise<Collection<PostDocument>> {
   return client.db().collection<PostDocument>("posts");
 }
 
+async function ensureSeedPosts(posts: Collection<PostDocument>): Promise<void> {
+  const count = await posts.countDocuments();
+  if (count > 0) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  await posts.insertMany(
+    seedPosts.map((post, index) => ({
+      ownerUserId: `seed-post-owner-${index + 1}`,
+      title: post.title,
+      summary: post.summary,
+      mode: post.mode,
+      requestedBy: post.requestedBy,
+      deadline: post.deadline,
+      category: post.category,
+      status: post.status,
+      createdAt: now,
+      updatedAt: now
+    }))
+  );
+}
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -259,12 +283,14 @@ export async function listUsers(): Promise<RegisteredUser[]> {
 
 export async function listPosts(): Promise<DemoPost[]> {
   const posts = await getPostsCollection();
+  await ensureSeedPosts(posts);
   const documents = await posts.find({}).sort({ createdAt: -1 }).toArray();
   return documents.map((document) => toPostRecord(document, String(document._id)));
 }
 
 export async function createPost(input: CreatePostInput): Promise<DemoPost> {
   const posts = await getPostsCollection();
+  await ensureSeedPosts(posts);
   const now = new Date().toISOString();
   const title = input.title.trim();
 

@@ -31,7 +31,7 @@ export function ConnectClient() {
     return `${url.pathname}${url.search}`;
   }, [pathname, slackTeamId, slackUserId]);
 
-  const authLink = `/auth?next=${encodeURIComponent(currentConnectUrl)}`;
+  const authLink = `/auth/sign-in?next=${encodeURIComponent(currentConnectUrl)}`;
 
   useEffect(() => {
     let active = true;

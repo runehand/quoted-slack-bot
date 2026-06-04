@@ -33,7 +33,7 @@ That one route handles:
 - `/api/logs`
 - `/api`
 
-The pages at `/`, `/status`, `/auth`, `/connect`, `/posts`, and `/debug` are normal Next.js pages.
+The pages at `/`, `/status`, `/auth`, `/auth/sign-in`, `/auth/sign-up`, `/connect`, `/posts`, and `/debug` are normal Next.js pages.
 
 ## Flow
 
@@ -41,7 +41,7 @@ The pages at `/`, `/status`, `/auth`, `/connect`, `/posts`, and `/debug` are nor
 2. Bot checks whether the Slack identity is linked in MongoDB
 3. If linked, the bot shows `Call for Experts` and `Call for Products`
 4. If not linked, the bot shows `Connect Qwoted Account`
-5. The connect page sends the user to `/auth`
+5. The connect page sends the user to `/auth/sign-in`
 6. Sign up or sign in creates a MongoDB user session
 7. The connect page links the Slack team/user IDs to that account
 8. The posts page lets a signed-in user create live posts in MongoDB
@@ -72,6 +72,8 @@ Open:
 
 - `http://localhost:3000/` for the status page
 - `http://localhost:3000/auth`
+- `http://localhost:3000/auth/sign-in`
+- `http://localhost:3000/auth/sign-up`
 - `http://localhost:3000/connect`
 - `http://localhost:3000/posts`
 - `http://localhost:3000/debug`
@@ -105,7 +107,7 @@ Action logs are stored in MongoDB and can be viewed at `/debug` or fetched from 
 
 ## Demo Data
 
-Posts are stored in MongoDB and created from the `/posts` page.
+Posts are stored in MongoDB, seeded on first request, and created from the `/posts` page.
 
 The bot returns deterministic confirmation text, but the matched candidate comes from live MongoDB post data.
 
