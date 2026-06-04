@@ -188,24 +188,28 @@ function buildModal(mode: RequestMode, teamId: string, userId: string, channelId
         type: "input",
         block_id: "description",
         label: { type: "plain_text", text: "Description" },
+        optional: true,
         element: { type: "plain_text_input", action_id: "value", multiline: true }
       },
       {
         type: "input",
         block_id: "audience",
         label: { type: "plain_text", text: targetLabel },
+        optional: true,
         element: { type: "plain_text_input", action_id: "value" }
       },
       {
         type: "input",
         block_id: "deadline",
         label: { type: "plain_text", text: "Deadline" },
+        optional: true,
         element: { type: "plain_text_input", action_id: "value", placeholder: { type: "plain_text", text: "Friday" } }
       },
       {
         type: "input",
         block_id: "category",
         label: { type: "plain_text", text: "Category" },
+        optional: true,
         element: { type: "plain_text_input", action_id: "value" }
       }
     ]
