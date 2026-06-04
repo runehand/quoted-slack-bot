@@ -47,4 +47,6 @@ export type DemoCopy = {
   notification: string;
   requestId: string;
   requestUrl: string;
+  matchedPost: DemoPost;
+  matchedPostScore: number;
 };

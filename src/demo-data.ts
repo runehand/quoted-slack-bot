@@ -137,7 +137,9 @@ export function buildDemoCopy(
     requestId,
     requestUrl,
     confirmation: `OK. Your ${requestLabel} request has been submitted.\n\nTopic: ${input.title}\n${lookingForLabel}: ${summary}\nDeadline: ${input.deadline}\nCategory: ${input.category}\n\nRequested by: ${requestorName}\nView request: ${requestUrl}`,
-    notification: `New pitch received for your request: ${input.title}\n\nMatched post: ${post.title}\n${post.summary}\nView in Qwoted: ${requestUrl}`
+    notification: `New pitch received for your request: ${input.title}\n\nMatched post: ${post.title}\n${post.summary}\nView in Qwoted: ${requestUrl}`,
+    matchedPost: post,
+    matchedPostScore: match.matchedPostScore
   };
 }
 
