@@ -5,6 +5,14 @@ type DemoData = {
   posts: DemoPost[];
 };
 
+export type RequestMatchAnalysis = {
+  searchText: string;
+  searchTokens: string[];
+  matchedPost: DemoPost;
+  matchedPostScore: number;
+  allScores: Array<{ postId: string; title: string; score: number; mode: DemoPost["mode"] }>;
+};
+
 function loadDemoData(): DemoData {
   if (mockData?.posts?.length) {
     return mockData as DemoData;
@@ -78,20 +86,32 @@ function scorePost(post: DemoPost, searchTokens: string[], mode: DemoRequestInpu
   return score;
 }
 
-function selectPost(mode: DemoRequestInput["mode"], input: DemoRequestInput, posts: DemoPost[]): DemoPost {
+export function analyzeRequestMatch(mode: DemoRequestInput["mode"], input: DemoRequestInput, posts: DemoPost[]): RequestMatchAnalysis {
   const searchText = [input.title, input.description, input.audience, input.category, input.deadline].filter(Boolean).join(" ");
   const searchTokens = tokenizeSearch(searchText);
   const ranked = posts
-    .map((post) => ({ post, score: scorePost(post, searchTokens, mode) }))
+    .map((post) => ({
+      post,
+      score: scorePost(post, searchTokens, mode)
+    }))
     .sort((left, right) => right.score - left.score);
 
-  const best = ranked.find((entry) => entry.score > 0 && entry.post.mode === mode);
-  if (best) {
-    return best.post;
-  }
+  const best = ranked.find((entry) => entry.score > 0 && entry.post.mode === mode) ?? ranked[0];
+  const fallback = posts[0];
+  const matchedPost = best?.post ?? fallback;
 
-  const anyBest = ranked[0];
-  return anyBest?.post ?? posts[0];
+  return {
+    searchText,
+    searchTokens,
+    matchedPost,
+    matchedPostScore: best?.score ?? 0,
+    allScores: ranked.map((entry) => ({
+      postId: entry.post.id,
+      title: entry.post.title,
+      score: entry.score,
+      mode: entry.post.mode
+    }))
+  };
 }
 
 export function getDemoPosts(): DemoPost[] {
@@ -106,7 +126,8 @@ export function buildDemoCopy(
   const requestId = makeRequestId();
   const requestUrl = `${requestBaseUrl.replace(/\/$/, "")}/${requestId}`;
   const data = loadDemoData();
-  const post = selectPost(input.mode, input, data.posts);
+  const match = analyzeRequestMatch(input.mode, input, data.posts);
+  const post = match.matchedPost;
   const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
   const lookingForLabel = input.mode === "experts" ? "Looking for" : "What product are you looking for?";
   const summary = input.audience.trim() || input.description.trim() || post.summary;
