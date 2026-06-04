@@ -1,162 +1,112 @@
 # Qwoted Slack Bot Demo
 
-This project is a minimal Slack bot for the Qwoted newsroom workflow. It focuses on the first launch path from the interviews:
+This repo now runs as a Next.js app on Vercel.
 
-- `/quoted` slash command
-- linked-user auth check
-- `Call for Experts` and `Call for Products` modals
+What it includes:
+
+- `/quoted` Slack command
+- MongoDB-backed signup, sign-in, and Slack linking
+- static website pages for status, auth, and connect
+- one Vercel API route for all backend endpoints
 - demo confirmation and notification messages
-- simple website signup/sign-in flow
-- Slack account linking
-- MongoDB-backed user storage
-- Vercel-ready API routes
 
-## What The Demo Does
+## Architecture
+
+The app uses a single serverless function at `app/api/[[...slug]]/route.ts`.
+
+That one route handles:
+
+- `/api/health`
+- `/api/me`
+- `/api/auth/register`
+- `/api/auth/login`
+- `/api/auth/logout`
+- `/api/link-slack`
+- `/api/slack/commands`
+- `/api/slack/interactions`
+- `/api/demo-notification`
+- `/api/users`
+- `/api/posts`
+- `/api/mock-data`
+- `/api`
+
+The pages at `/`, `/status`, `/auth`, and `/connect` are normal Next.js pages.
+
+## Flow
 
 1. User runs `/quoted`
-2. Bot checks whether the Slack user is linked to a Qwoted account
-3. If linked, bot shows:
-   - `Call for Experts`
-   - `Call for Products`
-4. If not linked, bot shows `Connect Qwoted Account`
-5. The connect page sends the user to a simple Qwoted signup/sign-in page
-6. After sign-in, the user links their Slack identity to the Qwoted account
-7. The bot then opens the modal, returns confirmation text, and posts a demo notification
-
-## Tech Stack
-
-- Node.js
-- TypeScript
-- Vercel API routes
-- Slack Web API
-- MongoDB Atlas
-
-## Project Files
-
-- `src/slack.ts` contains Slack command, interaction, and webhook logic
-- `src/auth-store.ts` contains MongoDB user/session/link storage
-- `src/web-pages.ts` renders the signup, sign-in, and connect pages
-- `src/demo-data.ts` serves seeded demo posts and demo copy
-- `src/config.ts` loads environment variables
-- `src/data/mock-data.json` contains the 10 seeded demo posts
-- `api/` contains the Vercel route handlers
+2. Bot checks whether the Slack identity is linked in MongoDB
+3. If linked, the bot shows `Call for Experts` and `Call for Products`
+4. If not linked, the bot shows `Connect Qwoted Account`
+5. The connect page sends the user to `/auth`
+6. Sign up or sign in creates a MongoDB user session
+7. The connect page links the Slack team/user IDs to that account
+8. The Slack bot then opens the modal and returns demo confirmation text
 
 ## Environment Variables
 
-Copy `.env.example` into your Vercel environment settings or a local `.env` file.
-
-Required values:
+Set these in Vercel:
 
 - `SLACK_BOT_TOKEN`
 - `SLACK_SIGNING_SECRET`
 - `MONGODB_URI`
 - `APP_BASE_URL`
 
-Optional values:
+Optional:
 
 - `SESSION_COOKIE_NAME`
 - `DEMO_REQUEST_BASE_URL`
 
-## Local Build
+## Local Development
 
 ```bash
 npm install
-npm run build
+npm run dev
 ```
+
+Open:
+
+- `http://localhost:3000/` for the status page
+- `http://localhost:3000/auth`
+- `http://localhost:3000/connect`
 
 ## Slack App Setup
 
-Create a Slack app and add these features:
+Use these request URLs:
 
-### Slash Command
+- Slash command: `https://YOUR_PROJECT.vercel.app/api/slack/commands`
+- Interactivity: `https://YOUR_PROJECT.vercel.app/api/slack/interactions`
 
-- Command: `/quoted`
-- Request URL: `https://YOUR_PROJECT.vercel.app/api/slack/commands`
-
-### Interactivity
-
-- Enable interactivity
-- Request URL: `https://YOUR_PROJECT.vercel.app/api/slack/interactions`
-
-### OAuth Scopes
-
-Add these bot scopes:
+Bot scopes:
 
 - `commands`
 - `chat:write`
 - `im:write`
 
-Install the app, then copy:
+## MongoDB
 
-- Bot User OAuth Token into `SLACK_BOT_TOKEN`
-- Signing Secret into `SLACK_SIGNING_SECRET`
+Users are stored in MongoDB with:
 
-## Website Auth Flow
+- email
+- password hash
+- Slack team ID
+- Slack user ID
+- Qwoted user ID
 
-The demo includes a simple website flow:
-
-- `GET /auth` shows sign-up and sign-in forms
-- `POST /api/auth/register` creates a user in MongoDB and sets a session cookie
-- `POST /api/auth/login` authenticates a user and sets a session cookie
-- `GET /connect` shows the Slack link page
-- `POST /api/link-slack` stores the Slack team/user IDs on the MongoDB user record
-
-When a Slack user is not linked, `/quoted` shows the connect button. The connect page points the user to `/auth` and then back to `/connect`.
-
-## Vercel Deployment
-
-Deploy the repo as a Vercel project.
-
-Set these environment variables in Vercel:
-
-- `SLACK_BOT_TOKEN`
-- `SLACK_SIGNING_SECRET`
-- `MONGODB_URI`
-- `APP_BASE_URL`
-- `SESSION_COOKIE_NAME` if you want a custom cookie name
-- `DEMO_REQUEST_BASE_URL` if you want a different request-link prefix
-
-Use these URLs in Slack:
-
-- Slash command request URL: `https://YOUR_PROJECT.vercel.app/api/slack/commands`
-- Interactivity request URL: `https://YOUR_PROJECT.vercel.app/api/slack/interactions`
-
-## Routes
-
-Public pages:
-
-- `GET /`
-- `GET /status`
-- `GET /auth`
-- `GET /connect`
-
-API routes:
-
-- `GET /api/health`
-- `GET /api`
-- `GET /api/users`
-- `GET /api/posts`
-- `GET /api/mock-data`
-- `GET /api/me`
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `POST /api/link-slack`
-- `POST /api/slack/commands`
-- `POST /api/slack/interactions`
-- `POST /api/demo-notification`
+Sessions are also stored in MongoDB and expire automatically.
 
 ## Demo Data
 
-The demo posts are seeded in `src/data/mock-data.json`. User records now live in MongoDB.
+Demo posts are seeded in `src/data/mock-data.json`.
 
-## Not Included
+The bot returns deterministic demo confirmation and notification text. It does not call a real Qwoted API.
 
-This demo does not include:
+## Deployment Notes
 
-- full Qwoted API integration
-- AI chatbot behavior
-- in-Slack pitch replies
-- story ideas
+This project is designed for Vercel Hobby:
 
-It is intentionally focused on the authenticated slash-command workflow and the two launch actions discussed in the interviews.
+- one API route instead of many serverless functions
+- static pages for the public UI
+- MongoDB Atlas for persistence
+
+If you want, I can next trim the code further into a smaller production-ready surface, but the current version is already the right deployment shape for Vercel Hobby.
