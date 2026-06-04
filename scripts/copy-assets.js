@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const sources = ["mock-users.json", "mock-data.json"];
+const sources = ["mock-data.json"];
 const destinationDir = path.join(__dirname, "..", "dist", "data");
 
 fs.mkdirSync(destinationDir, { recursive: true });

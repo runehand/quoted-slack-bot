@@ -1,5 +1,6 @@
 import { buildMockApiResponse } from "../src/demo-data";
+import { listUsers } from "../src/auth-store";
 
-export function GET(): Response {
-  return Response.json(buildMockApiResponse());
+export async function GET(): Promise<Response> {
+  return Response.json(buildMockApiResponse(await listUsers()));
 }

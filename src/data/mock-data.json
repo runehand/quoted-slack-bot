@@ -1,41 +1,4 @@
 {
-  "users": [
-    {
-      "id": "demo-user-001",
-      "name": "Avery Chen",
-      "role": "Reporter",
-      "email": "reporter@example.com",
-      "expertise": ["energy", "policy", "markets"]
-    },
-    {
-      "id": "demo-user-002",
-      "name": "Jordan Miles",
-      "role": "Editor",
-      "email": "editor@example.com",
-      "expertise": ["breaking news", "investigations"]
-    },
-    {
-      "id": "demo-user-003",
-      "name": "Riley Patel",
-      "role": "Producer",
-      "email": "producer@example.com",
-      "expertise": ["tv", "live interviews"]
-    },
-    {
-      "id": "demo-user-004",
-      "name": "Morgan Lewis",
-      "role": "Reporter",
-      "email": "morgan@example.com",
-      "expertise": ["health", "science"]
-    },
-    {
-      "id": "demo-user-005",
-      "name": "Casey Nguyen",
-      "role": "Assignment Editor",
-      "email": "casey@example.com",
-      "expertise": ["business", "local news"]
-    }
-  ],
   "posts": [
     {
       "id": "post-001",
