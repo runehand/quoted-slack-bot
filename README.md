@@ -7,6 +7,7 @@ What it includes:
 - `/quoted` Slack command
 - MongoDB-backed signup, sign-in, and Slack linking
 - static website pages for status, auth, and connect
+- MongoDB-backed action logs and a debug dashboard
 - one Vercel API route for all backend endpoints
 - demo confirmation and notification messages
 
@@ -28,9 +29,10 @@ That one route handles:
 - `/api/users`
 - `/api/posts`
 - `/api/mock-data`
+- `/api/logs`
 - `/api`
 
-The pages at `/`, `/status`, `/auth`, and `/connect` are normal Next.js pages.
+The pages at `/`, `/status`, `/auth`, `/connect`, and `/debug` are normal Next.js pages.
 
 ## Flow
 
@@ -69,6 +71,7 @@ Open:
 - `http://localhost:3000/` for the status page
 - `http://localhost:3000/auth`
 - `http://localhost:3000/connect`
+- `http://localhost:3000/debug`
 
 ## Slack App Setup
 
@@ -94,6 +97,8 @@ Users are stored in MongoDB with:
 - Qwoted user ID
 
 Sessions are also stored in MongoDB and expire automatically.
+
+Action logs are stored in MongoDB and can be viewed at `/debug` or fetched from `/api/logs`.
 
 ## Demo Data
 

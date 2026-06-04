@@ -23,6 +23,20 @@ type SessionDocument = {
   expiresAt: Date;
 };
 
+type ActionLogDocument = {
+  _id?: ObjectId;
+  action: string;
+  source: string;
+  actorUserId: string | null;
+  actorEmail: string | null;
+  slackTeamId: string | null;
+  slackUserId: string | null;
+  status: "ok" | "error";
+  summary: string;
+  details: Record<string, unknown>;
+  createdAt: Date;
+};
+
 type AuthUserInput = {
   email: string;
   name: string;
@@ -70,6 +84,7 @@ async function ensureIndexes(): Promise<void> {
     const database = client.db();
     const users = database.collection<UserDocument>("users");
     const sessions = database.collection<SessionDocument>("sessions");
+    const logs = database.collection<ActionLogDocument>("action_logs");
 
     await Promise.all([
       users.createIndex({ email: 1 }, { unique: true }),
@@ -84,7 +99,10 @@ async function ensureIndexes(): Promise<void> {
         }
       ),
       sessions.createIndex({ token: 1 }, { unique: true }),
-      sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
+      sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      logs.createIndex({ createdAt: -1 }),
+      logs.createIndex({ action: 1, createdAt: -1 }),
+      logs.createIndex({ source: 1, createdAt: -1 })
     ]);
   })();
 
@@ -101,6 +119,12 @@ async function getSessionsCollection(): Promise<Collection<SessionDocument>> {
   const client = await getMongoClient();
   await ensureIndexes();
   return client.db().collection<SessionDocument>("sessions");
+}
+
+async function getActionLogsCollection(): Promise<Collection<ActionLogDocument>> {
+  const client = await getMongoClient();
+  await ensureIndexes();
+  return client.db().collection<ActionLogDocument>("action_logs");
 }
 
 function normalizeEmail(email: string): string {
@@ -349,4 +373,46 @@ export async function findLinkedUser(teamId: string | undefined, userId: string 
   }
 
   return toLinkedUser(document, String(document._id));
+}
+
+export type ActionLogInput = {
+  action: string;
+  source: string;
+  actorUserId?: string | null;
+  actorEmail?: string | null;
+  slackTeamId?: string | null;
+  slackUserId?: string | null;
+  status?: "ok" | "error";
+  summary: string;
+  details?: Record<string, unknown>;
+};
+
+export type ActionLogQuery = {
+  limit?: number;
+};
+
+export async function appendActionLog(input: ActionLogInput): Promise<void> {
+  const logs = await getActionLogsCollection();
+  const createdAt = new Date();
+  await logs.insertOne({
+    action: input.action,
+    source: input.source,
+    actorUserId: input.actorUserId ?? null,
+    actorEmail: input.actorEmail ?? null,
+    slackTeamId: input.slackTeamId ?? null,
+    slackUserId: input.slackUserId ?? null,
+    status: input.status ?? "ok",
+    summary: input.summary,
+    details: input.details ?? {},
+    createdAt
+  });
+}
+
+export async function listActionLogs(query: ActionLogQuery = {}): Promise<Array<ActionLogDocument & { id: string }>> {
+  const logs = await getActionLogsCollection();
+  const documents = await logs.find({}).sort({ createdAt: -1 }).limit(query.limit ?? 50).toArray();
+  return documents.map((document) => ({
+    id: String(document._id),
+    ...document
+  }));
 }

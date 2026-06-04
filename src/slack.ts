@@ -3,10 +3,12 @@ import { WebClient, type View } from "@slack/web-api";
 import { buildDemoCopy, buildMockApiResponse, getDemoPosts } from "./demo-data";
 import { getConfig } from "./config";
 import {
+  appendActionLog,
   authenticateUser,
   createSession,
   createUser,
   deleteSession,
+  listActionLogs,
   findLinkedUser,
   findUserBySession,
   linkSlackAccount,
@@ -240,6 +242,13 @@ async function postDemoMessages(
   const dm = await slackClient.conversations.open({ users: userId });
   const channel = dm.channel?.id;
   if (!channel) {
+    recordActionLog({
+      action: "slack.post_demo_messages",
+      source: "slack",
+      status: "error",
+      summary: "Could not open a DM channel for the demo notification.",
+      details: { teamId, userId }
+    });
     return;
   }
 
@@ -261,6 +270,25 @@ async function postDemoMessages(
       }
     ]
   });
+
+  recordActionLog({
+    action: "slack.post_demo_messages",
+    source: "slack",
+    status: "ok",
+    summary: "Sent demo confirmation and notification messages.",
+    details: {
+      teamId,
+      userId,
+      requestId: copy.requestId,
+      requestUrl: copy.requestUrl,
+      mode: input.mode,
+      title: input.title
+    }
+  });
+}
+
+function recordActionLog(input: Parameters<typeof appendActionLog>[0]): void {
+  void appendActionLog(input).catch(() => undefined);
 }
 
 export async function handleSlashCommand(
@@ -276,6 +304,18 @@ export async function handleSlashCommand(
   }
 
   const linkedUser = await findLinkedUser(event.team_id, event.user_id);
+  recordActionLog({
+    action: "slack.command",
+    source: "slack",
+    status: "ok",
+    summary: linkedUser ? "Slack slash command opened the workflow menu." : "Slack slash command showed connect prompt.",
+    slackTeamId: event.team_id ?? null,
+    slackUserId: event.user_id ?? null,
+    details: {
+      command: event.command,
+      linked: Boolean(linkedUser)
+    }
+  });
   const connectUrl =
     event.team_id && event.user_id ? buildConnectUrl(config.appBaseUrl, event.team_id, event.user_id) : config.appBaseUrl;
   const blocks = linkedUser ? buildMenuBlocks() : buildConnectBlocks(connectUrl);
@@ -301,7 +341,27 @@ export async function handleInteraction(
   const mode = getModeFromAction(actionId);
 
   if (payload.type === "block_actions" && mode) {
+    recordActionLog({
+      action: "slack.button_click",
+      source: "slack",
+      status: "ok",
+      summary: `Opened ${mode === "experts" ? "Call for Experts" : "Call for Products"} modal.`,
+      slackTeamId: payload.team.id,
+      slackUserId: payload.user.id,
+      details: {
+        actionId,
+        mode
+      }
+    });
     if (!config.slackBotToken) {
+      recordActionLog({
+        action: "slack.modal_open",
+        source: "slack",
+        status: "error",
+        summary: "Slack bot token missing so modal could not open.",
+        slackTeamId: payload.team.id,
+        slackUserId: payload.user.id
+      });
       return {
         statusCode: 200,
         headers: { "content-type": "application/json" },
@@ -316,6 +376,15 @@ export async function handleInteraction(
     await client.views.open({
       trigger_id: payload.trigger_id ?? "",
       view: buildModal(mode, payload.team.id, payload.user.id)
+    });
+    recordActionLog({
+      action: "slack.modal_open",
+      source: "slack",
+      status: "ok",
+      summary: "Opened Slack modal.",
+      slackTeamId: payload.team.id,
+      slackUserId: payload.user.id,
+      details: { mode }
     });
 
     return {
@@ -349,10 +418,36 @@ export async function handleInteraction(
     };
 
     const copy = buildDemoCopy(requestInput, config.demoRequestBaseUrl, null);
+    recordActionLog({
+      action: "slack.modal_submit",
+      source: "slack",
+      status: "ok",
+      summary: "Slack modal submission received and acknowledged.",
+      slackTeamId: privateMetadata.teamId,
+      slackUserId: privateMetadata.userId,
+      details: {
+        mode: privateMetadata.mode,
+        title,
+        deadline,
+        category,
+        requestId: copy.requestId,
+        requestUrl: copy.requestUrl
+      }
+    });
 
     if (config.slackBotToken) {
       const client = new WebClient(config.slackBotToken);
       void postDemoMessages(client, requestInput, copy, privateMetadata.teamId, privateMetadata.userId).catch(() => undefined);
+    } else {
+      recordActionLog({
+        action: "slack.post_demo_messages",
+        source: "slack",
+        status: "error",
+        summary: "Slack bot token missing, so follow-up messages were skipped.",
+        slackTeamId: privateMetadata.teamId,
+        slackUserId: privateMetadata.userId,
+        details: { requestId: copy.requestId }
+      });
     }
 
     return {
@@ -375,7 +470,8 @@ export async function handleApiRoute(
   route: string,
   method: string,
   body: string | undefined,
-  headers: Record<string, string | undefined>
+  headers: Record<string, string | undefined>,
+  searchParams: URLSearchParams = new URLSearchParams()
 ): Promise<Response> {
   const config = getConfig();
 
@@ -390,6 +486,15 @@ export async function handleApiRoute(
         name: form.name ?? "",
         email: form.email ?? "",
         password: form.password ?? ""
+      });
+      recordActionLog({
+        action: "auth.register",
+        source: "web",
+        actorUserId: user.id,
+        actorEmail: user.email,
+        status: "ok",
+        summary: "Created a new Qwoted account.",
+        details: { next: form.next ?? "/connect" }
       });
       const sessionToken = await createSession(user.id);
       const secure = headers["x-forwarded-proto"] === "https" || new URL(config.appBaseUrl).protocol === "https:";
@@ -410,9 +515,26 @@ export async function handleApiRoute(
     const form = parseBody(body ?? "");
     const user = await authenticateUser(form.email ?? "", form.password ?? "");
     if (!user) {
+      recordActionLog({
+        action: "auth.login",
+        source: "web",
+        actorEmail: form.email ?? null,
+        status: "error",
+        summary: "Login failed.",
+        details: { reason: "invalid_credentials" }
+      });
       return redirectResponse(`/auth?error=${encodeURIComponent("Invalid email or password.")}`);
     }
 
+    recordActionLog({
+      action: "auth.login",
+      source: "web",
+      actorUserId: user.id,
+      actorEmail: user.email,
+      status: "ok",
+      summary: "Signed in to Qwoted account.",
+      details: { next: form.next ?? "/connect" }
+    });
     const sessionToken = await createSession(user.id);
     const secure = headers["x-forwarded-proto"] === "https" || new URL(config.appBaseUrl).protocol === "https:";
     return redirectResponse(form.next ?? "/connect", {
@@ -426,6 +548,13 @@ export async function handleApiRoute(
 
   if (route === "/api/auth/logout" && method === "POST") {
     const cookies = parseCookies(headers.cookie);
+    recordActionLog({
+      action: "auth.logout",
+      source: "web",
+      status: "ok",
+      summary: "Signed out of Qwoted account.",
+      details: { hadSession: Boolean(cookies[config.sessionCookieName]) }
+    });
     await deleteSession(cookies[config.sessionCookieName]);
     return redirectResponse("/auth", {
       "set-cookie": clearCookie(config.sessionCookieName)
@@ -455,9 +584,31 @@ export async function handleApiRoute(
     });
 
     if (!linked) {
+      recordActionLog({
+        action: "slack.link_account",
+        source: "web",
+        actorUserId: currentUser.id,
+        actorEmail: currentUser.email,
+        slackTeamId,
+        slackUserId,
+        status: "error",
+        summary: "Failed to link Slack account.",
+        details: { next }
+      });
       return redirectResponse(`/connect?error=${encodeURIComponent("Unable to link the Slack account.")}`);
     }
 
+    recordActionLog({
+      action: "slack.link_account",
+      source: "web",
+      actorUserId: currentUser.id,
+      actorEmail: currentUser.email,
+      slackTeamId,
+      slackUserId,
+      status: "ok",
+      summary: "Linked Slack account to Qwoted account.",
+      details: { next }
+    });
     return redirectResponse(`${next}${next.includes("?") ? "&" : "?"}success=${encodeURIComponent("Slack account linked.")}`);
   }
 
@@ -533,6 +684,12 @@ export async function handleApiRoute(
     return Response.json(buildMockApiResponse(await listUsers()));
   }
 
+  if (route === "/api/logs" && method === "GET") {
+    const limit = Number(searchParams.get("limit") ?? "50");
+    const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 200) : 50;
+    return Response.json({ logs: await listActionLogs({ limit: safeLimit }) });
+  }
+
   if (route === "/api" && method === "GET") {
     return Response.json({
       name: "Qwoted Slack Bot Demo",
@@ -549,6 +706,7 @@ export async function handleApiRoute(
         authLogout: "/api/auth/logout",
         linkSlack: "/api/link-slack",
         me: "/api/me",
+        logs: "/api/logs",
         auth: "/auth",
         connect: "/connect"
       }
@@ -557,3 +715,4 @@ export async function handleApiRoute(
 
   return Response.json({ error: "not found", route, method }, { status: 404 });
 }
+

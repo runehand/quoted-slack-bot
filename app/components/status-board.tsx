@@ -129,6 +129,9 @@ export function StatusBoard() {
             <a className="pill" href="/auth">
               Sign in
             </a>
+            <a className="pill" href="/debug">
+              Debug dashboard
+            </a>
           </div>
           <h1>Qwoted Slack Bot Demo</h1>
           <p className="muted">
@@ -193,6 +196,13 @@ export function StatusBoard() {
               </td>
               <td>Registered users and seeded posts</td>
               <td>Returns Mongo-backed users and 10 posts</td>
+            </tr>
+            <tr>
+              <td>
+                <code>/api/logs</code>
+              </td>
+              <td>Action log feed</td>
+              <td>Returns recent Mongo-backed event logs</td>
             </tr>
             <tr>
               <td>
