@@ -8,6 +8,14 @@
     {
       "source": "/status",
       "destination": "/api/status"
+    },
+    {
+      "source": "/auth",
+      "destination": "/api/auth"
+    },
+    {
+      "source": "/connect",
+      "destination": "/api/connect"
     }
   ]
 }

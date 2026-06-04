@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { WebClient, type View } from "@slack/web-api";
-import { buildDemoCopy, buildMockApiResponse, getDemoPosts, getDemoUsers } from "./demo-data";
-import { findLinkedUser, getConfig } from "./config";
+import { buildDemoCopy, buildMockApiResponse, getDemoPosts } from "./demo-data";
+import { getConfig } from "./config";
+import { findLinkedUser, listUsers } from "./auth-store";
 import { DemoRequestInput, RequestMode } from "./types";
 
 type ApiGatewayEvent = {
@@ -144,6 +145,13 @@ function buildConnectBlocks(connectUrl: string) {
   ];
 }
 
+function buildConnectUrl(baseUrl: string, teamId: string, userId: string): string {
+  const url = new URL("/connect", baseUrl);
+  url.searchParams.set("slack_team_id", teamId);
+  url.searchParams.set("slack_user_id", userId);
+  return url.toString();
+}
+
 function buildModal(mode: RequestMode, teamId: string, userId: string): View {
   const isExperts = mode === "experts";
   const targetLabel = isExperts ? "Who are you looking for?" : "What product are you looking for?";
@@ -264,8 +272,10 @@ export async function handleSlashCommand(
     };
   }
 
-  const linkedUser = findLinkedUser(event.team_id, event.user_id);
-  const blocks = linkedUser ? buildMenuBlocks() : buildConnectBlocks(config.demoConnectUrl);
+  const linkedUser = await findLinkedUser(event.team_id, event.user_id);
+  const connectUrl =
+    event.team_id && event.user_id ? buildConnectUrl(config.appBaseUrl, event.team_id, event.user_id) : config.appBaseUrl;
+  const blocks = linkedUser ? buildMenuBlocks() : buildConnectBlocks(connectUrl);
 
   return {
     statusCode: 200,
@@ -324,7 +334,7 @@ export async function handleInteraction(
     const audience = extractValue(state as NonNullable<NonNullable<SlackInteractionPayload["view"]>["state"]>, "audience");
     const deadline = extractValue(state as NonNullable<NonNullable<SlackInteractionPayload["view"]>["state"]>, "deadline");
     const category = extractValue(state as NonNullable<NonNullable<SlackInteractionPayload["view"]>["state"]>, "category");
-    const linkedUser = findLinkedUser(privateMetadata.teamId, privateMetadata.userId);
+    const linkedUser = await findLinkedUser(privateMetadata.teamId, privateMetadata.userId);
 
     const requestInput: DemoRequestInput = {
       mode: privateMetadata.mode,
@@ -336,7 +346,7 @@ export async function handleInteraction(
       linkedUser
     };
 
-    const copy = buildDemoCopy(requestInput, config.demoRequestBaseUrl);
+    const copy = buildDemoCopy(requestInput, config.demoRequestBaseUrl, linkedUser);
 
     if (config.slackBotToken) {
       const client = new WebClient(config.slackBotToken);
@@ -429,7 +439,7 @@ export async function handleApiRoute(
     return {
       statusCode: 200,
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ users: getDemoUsers() })
+      body: JSON.stringify({ users: await listUsers() })
     };
   }
 
@@ -445,7 +455,7 @@ export async function handleApiRoute(
     return {
       statusCode: 200,
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(buildMockApiResponse())
+      body: JSON.stringify(buildMockApiResponse(await listUsers()))
     };
   }
 
@@ -456,13 +466,15 @@ export async function handleApiRoute(
       body: JSON.stringify({
         name: "Qwoted Slack Bot Demo",
         endpoints: {
-          health: "/health",
+          health: "/api/health",
           users: "/api/users",
           posts: "/api/posts",
           mockData: "/api/mock-data",
-          slackCommands: "/slack/commands",
-          slackInteractions: "/slack/interactions",
-          demoNotification: "/api/demo-notification"
+          slackCommands: "/api/slack/commands",
+          slackInteractions: "/api/slack/interactions",
+          demoNotification: "/api/demo-notification",
+          auth: "/auth",
+          connect: "/connect"
         }
       })
     };
