@@ -39,6 +39,7 @@ type SlackInteractionPayload = {
   user: { id: string };
   team: { id: string };
   trigger_id?: string;
+  container?: { channel_id?: string; channel_type?: string };
   actions?: Array<{ action_id: string }>;
   view?: {
     id: string;
@@ -164,7 +165,7 @@ function buildConnectUrl(baseUrl: string, teamId: string, userId: string): strin
   return url.toString();
 }
 
-function buildModal(mode: RequestMode, teamId: string, userId: string): View {
+function buildModal(mode: RequestMode, teamId: string, userId: string, channelId?: string): View {
   const isExperts = mode === "experts";
   const targetLabel = isExperts ? "Who are you looking for?" : "What product are you looking for?";
   const title = isExperts ? "Call for Experts" : "Call for Products";
@@ -175,7 +176,7 @@ function buildModal(mode: RequestMode, teamId: string, userId: string): View {
     title: { type: "plain_text", text: title },
     submit: { type: "plain_text", text: "Submit" },
     close: { type: "plain_text", text: "Cancel" },
-    private_metadata: JSON.stringify({ mode, teamId, userId }),
+    private_metadata: JSON.stringify({ mode, teamId, userId, channelId: channelId ?? null }),
     blocks: [
       {
         type: "input",
@@ -323,6 +324,39 @@ async function postDemoMessages(
   });
 }
 
+async function postSubmissionMessage(
+  slackClient: WebClient,
+  input: DemoRequestInput,
+  copy: Awaited<ReturnType<typeof buildDemoCopy>>,
+  channelId: string
+): Promise<void> {
+  await slackClient.chat.postMessage({
+    channel: channelId,
+    text:
+      `${input.mode === "experts" ? "Call for Experts" : "Call for Products"} submitted.\n` +
+      `Topic: ${input.title}\n` +
+      `Deadline: ${input.deadline}\n` +
+      `Category: ${input.category}\n` +
+      `View request: ${copy.requestUrl}`
+  });
+
+  recordActionLog({
+    action: "slack.post_submission_message",
+    source: "slack",
+    status: "ok",
+    summary: "Posted submission confirmation to Slack.",
+    slackTeamId: null,
+    slackUserId: null,
+    details: {
+      channelId,
+      requestId: copy.requestId,
+      requestUrl: copy.requestUrl,
+      mode: input.mode,
+      title: input.title
+    }
+  });
+}
+
 function recordActionLog(input: Parameters<typeof appendActionLog>[0]): void {
   void appendActionLog(input).catch(() => undefined);
 }
@@ -411,7 +445,7 @@ export async function handleInteraction(
     const client = new WebClient(config.slackBotToken);
     await client.views.open({
       trigger_id: payload.trigger_id ?? "",
-      view: buildModal(mode, payload.team.id, payload.user.id)
+      view: buildModal(mode, payload.team.id, payload.user.id, payload.container?.channel_id)
     });
     recordActionLog({
       action: "slack.modal_open",
@@ -435,6 +469,7 @@ export async function handleInteraction(
       mode: RequestMode;
       teamId: string;
       userId: string;
+      channelId?: string | null;
     };
     const state = payload.view.state;
     const title = extractValue(state as NonNullable<NonNullable<SlackInteractionPayload["view"]>["state"]>, "title");
@@ -470,6 +505,11 @@ export async function handleInteraction(
         requestUrl: copy.requestUrl
       }
     });
+
+    if (config.slackBotToken && privateMetadata.channelId) {
+      const client = new WebClient(config.slackBotToken);
+      await postSubmissionMessage(client, requestInput, copy, privateMetadata.channelId).catch(() => undefined);
+    }
 
     return {
       statusCode: 200,
