@@ -211,6 +211,42 @@ function buildModal(mode: RequestMode, teamId: string, userId: string): View {
   } as View;
 }
 
+function buildSuccessView(
+  input: DemoRequestInput,
+  copy: Awaited<ReturnType<typeof buildDemoCopy>>
+): View {
+  const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
+  return {
+    type: "modal",
+    title: { type: "plain_text", text: "Submitted" },
+    close: { type: "plain_text", text: "Done" },
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text:
+            `*${requestLabel} submitted*\n\n` +
+            `*Topic:* ${input.title}\n` +
+            `*Deadline:* ${input.deadline}\n` +
+            `*Category:* ${input.category}\n\n` +
+            `View request: ${copy.requestUrl}`
+        }
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "Open Request" },
+            url: copy.requestUrl
+          }
+        ]
+      }
+    ]
+  } as View;
+}
+
 function extractValue(
   state: NonNullable<NonNullable<SlackInteractionPayload["view"]>["state"]>,
   blockId: string
@@ -435,26 +471,12 @@ export async function handleInteraction(
       }
     });
 
-    if (config.slackBotToken) {
-      const client = new WebClient(config.slackBotToken);
-      void postDemoMessages(client, requestInput, copy, privateMetadata.teamId, privateMetadata.userId).catch(() => undefined);
-    } else {
-      recordActionLog({
-        action: "slack.post_demo_messages",
-        source: "slack",
-        status: "error",
-        summary: "Slack bot token missing, so follow-up messages were skipped.",
-        slackTeamId: privateMetadata.teamId,
-        slackUserId: privateMetadata.userId,
-        details: { requestId: copy.requestId }
-      });
-    }
-
     return {
       statusCode: 200,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        response_action: "clear"
+        response_action: "update",
+        view: buildSuccessView(requestInput, copy)
       })
     };
   }
