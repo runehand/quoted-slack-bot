@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { MongoClient, ObjectId, type Collection } from "mongodb";
 import { getConfig } from "./config";
-import { LinkedUser, RegisteredUser } from "./types";
+import { DemoPost, LinkedUser, RegisteredUser, RequestMode } from "./types";
 
 type UserDocument = {
   _id?: ObjectId;
@@ -37,6 +37,22 @@ type ActionLogDocument = {
   createdAt: Date;
 };
 
+type PostStatus = "open" | "answered" | "pending";
+
+type PostDocument = {
+  _id?: ObjectId;
+  ownerUserId: string;
+  title: string;
+  summary: string;
+  mode: RequestMode;
+  requestedBy: string;
+  deadline: string;
+  category: string;
+  status: PostStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type AuthUserInput = {
   email: string;
   name: string;
@@ -47,6 +63,17 @@ type LinkSlackInput = {
   userId: string;
   slackTeamId: string;
   slackUserId: string;
+};
+
+type CreatePostInput = {
+  ownerUserId: string;
+  title: string;
+  summary?: string;
+  mode: RequestMode;
+  requestedBy: string;
+  deadline?: string;
+  category?: string;
+  status?: PostStatus;
 };
 
 type GlobalMongoState = {
@@ -85,6 +112,7 @@ async function ensureIndexes(): Promise<void> {
     const users = database.collection<UserDocument>("users");
     const sessions = database.collection<SessionDocument>("sessions");
     const logs = database.collection<ActionLogDocument>("action_logs");
+    const posts = database.collection<PostDocument>("posts");
 
     await Promise.all([
       users.createIndex({ email: 1 }, { unique: true }),
@@ -100,6 +128,9 @@ async function ensureIndexes(): Promise<void> {
       ),
       sessions.createIndex({ token: 1 }, { unique: true }),
       sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      posts.createIndex({ createdAt: -1 }),
+      posts.createIndex({ ownerUserId: 1, createdAt: -1 }),
+      posts.createIndex({ mode: 1, status: 1, createdAt: -1 }),
       logs.createIndex({ createdAt: -1 }),
       logs.createIndex({ action: 1, createdAt: -1 }),
       logs.createIndex({ source: 1, createdAt: -1 })
@@ -125,6 +156,12 @@ async function getActionLogsCollection(): Promise<Collection<ActionLogDocument>>
   const client = await getMongoClient();
   await ensureIndexes();
   return client.db().collection<ActionLogDocument>("action_logs");
+}
+
+async function getPostsCollection(): Promise<Collection<PostDocument>> {
+  const client = await getMongoClient();
+  await ensureIndexes();
+  return client.db().collection<PostDocument>("posts");
 }
 
 function normalizeEmail(email: string): string {
@@ -198,10 +235,58 @@ function toLinkedUser(document: UserDocument, id: string): LinkedUser {
   };
 }
 
+function toPostRecord(document: PostDocument, id?: string): DemoPost {
+  return {
+    id: id ?? String(document._id),
+    ownerUserId: document.ownerUserId,
+    title: document.title,
+    summary: document.summary,
+    mode: document.mode,
+    requestedBy: document.requestedBy,
+    deadline: document.deadline,
+    category: document.category,
+    status: document.status,
+    createdAt: document.createdAt,
+    updatedAt: document.updatedAt
+  };
+}
+
 export async function listUsers(): Promise<RegisteredUser[]> {
   const users = await getUsersCollection();
   const documents = await users.find({}).sort({ createdAt: -1 }).toArray();
   return documents.map((document) => toRegisteredUser(document, String(document._id)));
+}
+
+export async function listPosts(): Promise<DemoPost[]> {
+  const posts = await getPostsCollection();
+  const documents = await posts.find({}).sort({ createdAt: -1 }).toArray();
+  return documents.map((document) => toPostRecord(document, String(document._id)));
+}
+
+export async function createPost(input: CreatePostInput): Promise<DemoPost> {
+  const posts = await getPostsCollection();
+  const now = new Date().toISOString();
+  const title = input.title.trim();
+
+  if (!input.ownerUserId || !title) {
+    throw new Error("Owner and title are required.");
+  }
+
+  const document: PostDocument = {
+    ownerUserId: input.ownerUserId,
+    title,
+    summary: input.summary?.trim() ?? "",
+    mode: input.mode,
+    requestedBy: input.requestedBy.trim(),
+    deadline: input.deadline?.trim() ?? "",
+    category: input.category?.trim() ?? "",
+    status: input.status ?? "open",
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const result = await posts.insertOne(document);
+  return toPostRecord(document, String(result.insertedId));
 }
 
 export async function findUserByEmail(email: string): Promise<RegisteredUser | null> {

@@ -54,30 +54,72 @@ export function ConnectClient() {
     };
   }, []);
 
-  const linked = currentUser && currentUser.slackTeamId === slackTeamId && currentUser.slackUserId === slackUserId;
+  const linked = Boolean(currentUser && currentUser.slackTeamId === slackTeamId && currentUser.slackUserId === slackUserId);
 
   return (
-    <main className="app-shell">
-      <section className="panel card stack">
-        <div>
-          <h1>Connect your Qwoted account</h1>
+    <main className="app-shell stack">
+      <section className="hero">
+        <div className="panel card stack">
+          <div className="pill-row">
+            <a className="pill" href="/">
+              Status
+            </a>
+            <a className="pill" href="/posts">
+              Posts
+            </a>
+            <a className="pill" href="/debug">
+              Debug
+            </a>
+          </div>
+          <p className="eyebrow">Slack linking</p>
+          <h1>Connect a Qwoted account to this Slack identity</h1>
           <p className="muted">
-            Link Slack user <code>{slackTeamId || "unknown"}</code> / <code>{slackUserId || "unknown"}</code> to a Qwoted account.
+            The bot uses this link to validate the user before showing the request workflow.
           </p>
+
+          <div className="grid two">
+            <article className="notice">
+              <strong>Slack team</strong>
+              <div className="muted">{slackTeamId || "Missing from request"}</div>
+            </article>
+            <article className="notice">
+              <strong>Slack user</strong>
+              <div className="muted">{slackUserId || "Missing from request"}</div>
+            </article>
+          </div>
+
+          {error ? <div className="notice bad">{error}</div> : null}
+          {success ? <div className="notice good">{success}</div> : null}
         </div>
 
-        {currentUser ? (
-          <div className="notice good">
-            Signed in as <strong>{currentUser.name}</strong> ({currentUser.email}).
+        <div className="panel card stack">
+          <p className="eyebrow">Current session</p>
+          {currentUser ? (
+            <>
+              <h2>{currentUser.name}</h2>
+              <p className="muted">{currentUser.email}</p>
+              <div className="notice good">{linked ? "This Slack identity is already linked." : "Ready to link this Slack identity."}</div>
+            </>
+          ) : (
+            <>
+              <h2>Sign in first</h2>
+              <p className="muted">You need an active Qwoted session before linking Slack.</p>
+              <a className="pill" href={authLink}>
+                Go to sign in
+              </a>
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="panel card stack">
+        <div className="grid two">
+          <div>
+            <p className="eyebrow">Link status</p>
+            <h2>Identity binding</h2>
           </div>
-        ) : (
-          <div className="notice">
-            You are not signed in. <a href={authLink}>Go to sign in</a>.
-          </div>
-        )}
-        {linked ? <div className="notice good">This Slack identity is already linked.</div> : null}
-        {error ? <div className="notice bad">{error}</div> : null}
-        {success ? <div className="notice good">{success}</div> : null}
+          <div className="muted">This is the validation gate before `/quoted` opens the menu.</div>
+        </div>
 
         {currentUser && !linked && slackTeamId && slackUserId ? (
           <form method="post" action="/api/link-slack">
@@ -94,9 +136,13 @@ export function ConnectClient() {
           </div>
         ) : null}
 
-        <div className="muted">
-          After linking, return to Slack and run <code>/quoted</code> again.
-        </div>
+        {currentUser && linked ? (
+          <div className="notice good">
+            Linked Qwoted account: <strong>{currentUser.name}</strong>. Return to Slack and run <code>/quoted</code> again.
+          </div>
+        ) : null}
+
+        {!currentUser ? <div className="notice">Sign in to complete the linking flow.</div> : null}
       </section>
     </main>
   );

@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import { WebClient, type View } from "@slack/web-api";
-import { analyzeRequestMatch, buildDemoCopy, buildMockApiResponse, getDemoPosts } from "./demo-data";
+import { analyzeRequestMatch, buildDemoCopy, buildMockApiResponse } from "./demo-data";
 import { getConfig } from "./config";
 import {
   appendActionLog,
   authenticateUser,
+  createPost,
   createSession,
   createUser,
   deleteSession,
@@ -12,6 +13,7 @@ import {
   findLinkedUser,
   findUserBySession,
   linkSlackAccount,
+  listPosts,
   listUsers
 } from "./auth-store";
 import { buildCookie, clearCookie, parseCookies, redirectResponse } from "./http";
@@ -113,7 +115,7 @@ function buildMenuBlocks() {
       text: {
         type: "mrkdwn",
         text:
-          "*Qwoted demo menu*\nChoose one of the structured newsroom workflows. This bot checks whether your Slack user is linked before showing the menu."
+          "*Qwoted request menu*\nChoose one of the structured newsroom workflows. This bot checks whether your Slack user is linked before showing the menu."
       }
     },
     {
@@ -142,7 +144,7 @@ function buildConnectBlocks(connectUrl: string) {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "*Qwoted demo menu*\nYour Slack user is not linked yet."
+        text: "*Qwoted request menu*\nYour Slack user is not linked yet."
       }
     },
     {
@@ -221,6 +223,12 @@ function buildSuccessView(
   copy: Awaited<ReturnType<typeof buildDemoCopy>>
 ): View {
   const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
+  const matchedPost = copy.matchedPost;
+  const matchedSection = matchedPost
+    ? `*Matched candidate:* ${matchedPost.title}\n` +
+      `*Candidate summary:* ${matchedPost.summary}\n` +
+      `*Score:* ${copy.matchedPostScore}\n\n`
+    : `*Matched candidate:* None yet\n*Candidate summary:* Create posts in the Posts section.\n\n`;
   return {
     type: "modal",
     title: { type: "plain_text", text: "Submitted" },
@@ -232,9 +240,7 @@ function buildSuccessView(
           type: "mrkdwn",
           text:
             `*${requestLabel} submitted*\n\n` +
-            `*Matched candidate:* ${copy.matchedPost.title}\n` +
-            `*Candidate summary:* ${copy.matchedPost.summary}\n` +
-            `*Score:* ${copy.matchedPostScore}\n\n` +
+            matchedSection +
             `View request: ${copy.requestUrl}`
         }
       },
@@ -284,10 +290,10 @@ async function postDemoMessages(
   const channel = dm.channel?.id;
   if (!channel) {
     recordActionLog({
-      action: "slack.post_demo_messages",
+      action: "slack.post_request_messages",
       source: "slack",
       status: "error",
-      summary: "Could not open a DM channel for the demo notification.",
+      summary: "Could not open a DM channel for the request notification.",
       details: { teamId, userId }
     });
     return;
@@ -313,10 +319,10 @@ async function postDemoMessages(
   });
 
   recordActionLog({
-    action: "slack.post_demo_messages",
+    action: "slack.post_request_messages",
     source: "slack",
     status: "ok",
-    summary: "Sent demo confirmation and notification messages.",
+    summary: "Sent request confirmation and notification messages.",
     details: {
       teamId,
       userId,
@@ -336,6 +342,8 @@ async function postSubmissionMessage(
   teamId: string,
   userId: string
 ): Promise<void> {
+  const matchedPost = copy.matchedPost;
+
   await appendActionLog({
     action: "slack.reply_delivery",
     source: "slack",
@@ -353,14 +361,19 @@ async function postSubmissionMessage(
   });
 
   try {
-    const response = await slackClient.chat.postMessage({
-      channel: channelId,
-      text:
-        `Matched candidate for ${input.mode === "experts" ? "Call for Experts" : "Call for Products"}:\n` +
-        `${copy.matchedPost.title}\n` +
-        `${copy.matchedPost.summary}\n` +
+    const messageText = matchedPost
+      ? `Matched candidate for ${input.mode === "experts" ? "Call for Experts" : "Call for Products"}:\n` +
+        `${matchedPost.title}\n` +
+        `${matchedPost.summary}\n` +
         `Score: ${copy.matchedPostScore}\n` +
         `View request: ${copy.requestUrl}`
+      : `Request submitted for ${input.mode === "experts" ? "Call for Experts" : "Call for Products"}.\n` +
+        `No live candidate matched yet.\n` +
+        `View request: ${copy.requestUrl}`;
+
+    const response = await slackClient.chat.postMessage({
+      channel: channelId,
+      text: messageText
     });
 
     await appendActionLog({
@@ -376,12 +389,14 @@ async function postSubmissionMessage(
         requestUrl: copy.requestUrl,
         mode: input.mode,
         title: input.title,
-        matchedPost: {
-          id: copy.matchedPost.id,
-          title: copy.matchedPost.title,
-          score: copy.matchedPostScore,
-          mode: copy.matchedPost.mode
-        },
+        matchedPost: matchedPost
+          ? {
+              id: matchedPost.id,
+              title: matchedPost.title,
+              score: copy.matchedPostScore,
+              mode: matchedPost.mode
+            }
+          : null,
         slackChannel: response.channel ?? null,
         slackTs: response.ts ?? null
       }
@@ -401,12 +416,14 @@ async function postSubmissionMessage(
         requestUrl: copy.requestUrl,
         mode: input.mode,
         title: input.title,
-        matchedPost: {
-          id: copy.matchedPost.id,
-          title: copy.matchedPost.title,
-          score: copy.matchedPostScore,
-          mode: copy.matchedPost.mode
-        },
+        matchedPost: matchedPost
+          ? {
+              id: matchedPost.id,
+              title: matchedPost.title,
+              score: copy.matchedPostScore,
+              mode: matchedPost.mode
+            }
+          : null,
         error: slackError
       }
     });
@@ -493,7 +510,7 @@ export async function handleInteraction(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           response_type: "ephemeral",
-          text: "Slack bot token is missing, so the modal cannot open in this demo environment."
+          text: "Slack bot token is missing, so the modal cannot open in the current environment."
         })
       };
     }
@@ -544,8 +561,9 @@ export async function handleInteraction(
       linkedUser: null
     };
 
-    const match = analyzeRequestMatch(requestInput.mode, requestInput, getDemoPosts());
-    const copy = buildDemoCopy(requestInput, config.demoRequestBaseUrl, null);
+    const posts = await listPosts();
+    const match = analyzeRequestMatch(requestInput.mode, requestInput, posts);
+    const copy = await buildDemoCopy(requestInput, config.demoRequestBaseUrl, null, posts);
     recordActionLog({
       action: "slack.modal_submit",
       source: "slack",
@@ -558,12 +576,14 @@ export async function handleInteraction(
         title,
         searchText: match.searchText,
         searchTokens: match.searchTokens,
-        matchedPost: {
-          id: match.matchedPost.id,
-          title: match.matchedPost.title,
-          score: match.matchedPostScore,
-          mode: match.matchedPost.mode
-        },
+        matchedPost: match.matchedPost
+          ? {
+              id: match.matchedPost.id,
+              title: match.matchedPost.title,
+              score: match.matchedPostScore,
+              mode: match.matchedPost.mode
+            }
+          : null,
         deadline,
         category,
         requestId: copy.requestId,
@@ -577,7 +597,7 @@ export async function handleInteraction(
       status: match.matchedPostScore > 0 ? "ok" : "error",
       summary:
         match.matchedPostScore > 0
-          ? `Found a reply candidate: ${match.matchedPost.title}.`
+          ? `Found a reply candidate: ${match.matchedPost?.title ?? "Unknown"}.`
           : "No strong reply candidate was found for the request.",
       slackTeamId: privateMetadata.teamId,
       slackUserId: privateMetadata.userId,
@@ -586,12 +606,14 @@ export async function handleInteraction(
         title,
         searchText: match.searchText,
         searchTokens: match.searchTokens,
-        matchedPost: {
-          id: match.matchedPost.id,
-          title: match.matchedPost.title,
-          score: match.matchedPostScore,
-          mode: match.matchedPost.mode
-        },
+        matchedPost: match.matchedPost
+          ? {
+              id: match.matchedPost.id,
+              title: match.matchedPost.title,
+              score: match.matchedPostScore,
+              mode: match.matchedPost.mode
+            }
+          : null,
         scores: match.allScores
       }
     });
@@ -820,14 +842,14 @@ export async function handleApiRoute(
     const input: DemoRequestInput = {
       mode: json.mode === "products" ? "products" : "experts",
       title: json.title ?? "Gas prices",
-      description: json.description ?? "Media request demo",
+      description: json.description ?? "Media request workflow",
       audience: json.audience ?? "Economists or energy experts",
       deadline: json.deadline ?? "Friday",
       category: json.category ?? "Newsroom",
       linkedUser: undefined
     };
 
-    const copy = buildDemoCopy(input, config.demoRequestBaseUrl);
+    const copy = await buildDemoCopy(input, config.demoRequestBaseUrl);
     return Response.json(copy);
   }
 
@@ -836,11 +858,61 @@ export async function handleApiRoute(
   }
 
   if (route === "/api/posts" && method === "GET") {
-    return Response.json({ posts: getDemoPosts() });
+    return Response.json({ posts: await listPosts() });
   }
 
-  if (route === "/api/mock-data" && method === "GET") {
-    return Response.json(buildMockApiResponse(await listUsers()));
+  if (route === "/api/posts" && method === "POST") {
+    const cookies = parseCookies(headers.cookie);
+    const currentUser = await findUserBySession(cookies[config.sessionCookieName]);
+    if (!currentUser) {
+      return redirectResponse("/auth?next=/posts&error=Please sign in first.");
+    }
+
+    const form = parseBody(body ?? "");
+    try {
+      const post = await createPost({
+        ownerUserId: currentUser.id,
+        title: form.title ?? "",
+        summary: form.summary ?? "",
+        mode: form.mode === "products" ? "products" : "experts",
+        requestedBy: currentUser.name,
+        deadline: form.deadline ?? "",
+        category: form.category ?? "",
+        status: (form.status as "open" | "answered" | "pending" | undefined) ?? "open"
+      });
+
+      recordActionLog({
+        action: "posts.create",
+        source: "web",
+        actorUserId: currentUser.id,
+        actorEmail: currentUser.email,
+        status: "ok",
+        summary: "Created a request post.",
+        details: {
+          postId: post.id,
+          title: post.title,
+          mode: post.mode
+        }
+      });
+
+      return redirectResponse(`/posts?success=${encodeURIComponent("Post created.")}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to create post.";
+      recordActionLog({
+        action: "posts.create",
+        source: "web",
+        actorUserId: currentUser.id,
+        actorEmail: currentUser.email,
+        status: "error",
+        summary: "Failed to create a request post.",
+        details: { error: message }
+      });
+      return redirectResponse(`/posts?error=${encodeURIComponent(message)}`);
+    }
+  }
+
+  if ((route === "/api/mock-data" || route === "/api/catalog") && method === "GET") {
+    return Response.json(await buildMockApiResponse(await listUsers()));
   }
 
   if (route === "/api/logs" && method === "GET") {
@@ -851,11 +923,12 @@ export async function handleApiRoute(
 
   if (route === "/api" && method === "GET") {
     return Response.json({
-      name: "Qwoted Slack Bot Demo",
+      name: "Qwoted Request Center",
       endpoints: {
         health: "/api/health",
         users: "/api/users",
         posts: "/api/posts",
+        catalog: "/api/catalog",
         mockData: "/api/mock-data",
         slackCommands: "/api/slack/commands",
         slackInteractions: "/api/slack/interactions",
