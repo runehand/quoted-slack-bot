@@ -332,25 +332,17 @@ async function postSubmissionMessage(
   slackClient: WebClient,
   input: DemoRequestInput,
   copy: Awaited<ReturnType<typeof buildDemoCopy>>,
-  channelId: string
+  channelId: string,
+  teamId: string,
+  userId: string
 ): Promise<void> {
-  await slackClient.chat.postMessage({
-    channel: channelId,
-    text:
-      `${input.mode === "experts" ? "Call for Experts" : "Call for Products"} submitted.\n` +
-      `Topic: ${input.title}\n` +
-      `Deadline: ${input.deadline}\n` +
-      `Category: ${input.category}\n` +
-      `View request: ${copy.requestUrl}`
-  });
-
   recordActionLog({
-    action: "slack.post_submission_message",
+    action: "slack.reply_delivery",
     source: "slack",
     status: "ok",
-    summary: "Posted submission confirmation to Slack.",
-    slackTeamId: null,
-    slackUserId: null,
+    summary: "Attempting to post submission confirmation to Slack.",
+    slackTeamId: teamId,
+    slackUserId: userId,
     details: {
       channelId,
       requestId: copy.requestId,
@@ -359,6 +351,51 @@ async function postSubmissionMessage(
       title: input.title
     }
   });
+
+  try {
+    await slackClient.chat.postMessage({
+      channel: channelId,
+      text:
+        `${input.mode === "experts" ? "Call for Experts" : "Call for Products"} submitted.\n` +
+        `Topic: ${input.title}\n` +
+        `Deadline: ${input.deadline}\n` +
+        `Category: ${input.category}\n` +
+        `View request: ${copy.requestUrl}`
+    });
+
+    recordActionLog({
+      action: "slack.reply_delivery",
+      source: "slack",
+      status: "ok",
+      summary: "Posted submission confirmation to Slack.",
+      slackTeamId: teamId,
+      slackUserId: userId,
+      details: {
+        channelId,
+        requestId: copy.requestId,
+        requestUrl: copy.requestUrl,
+        mode: input.mode,
+        title: input.title
+      }
+    });
+  } catch (error) {
+    recordActionLog({
+      action: "slack.reply_delivery",
+      source: "slack",
+      status: "error",
+      summary: "Failed to post submission confirmation to Slack.",
+      slackTeamId: teamId,
+      slackUserId: userId,
+      details: {
+        channelId,
+        requestId: copy.requestId,
+        requestUrl: copy.requestUrl,
+        mode: input.mode,
+        title: input.title,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    });
+  }
 }
 
 function recordActionLog(input: Parameters<typeof appendActionLog>[0]): void {
@@ -540,7 +577,14 @@ export async function handleInteraction(
 
     if (config.slackBotToken && privateMetadata.channelId) {
       const client = new WebClient(config.slackBotToken);
-      await postSubmissionMessage(client, requestInput, copy, privateMetadata.channelId).catch(() => undefined);
+      await postSubmissionMessage(
+        client,
+        requestInput,
+        copy,
+        privateMetadata.channelId,
+        privateMetadata.teamId,
+        privateMetadata.userId
+      ).catch(() => undefined);
     }
 
     return {
