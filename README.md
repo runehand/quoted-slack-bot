@@ -105,6 +105,9 @@ Install the app to your workspace and copy the bot token and signing secret into
 
 Deploy the repo as a Vercel project. Vercel will use the files in `api/` as serverless routes.
 
+The root URL now serves a status page from `index.html`, so `https://YOUR_PROJECT.vercel.app/` should show a live dashboard instead of a 404.
+The same dashboard is also available at `https://YOUR_PROJECT.vercel.app/status`.
+
 ### Route URLs
 
 Use these endpoints in Slack and for testing:

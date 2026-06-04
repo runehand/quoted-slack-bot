@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/status",
+      "destination": "/api/status"
+    }
+  ],
   "functions": {
     "api/**/*.ts": {
       "runtime": "nodejs20.x"
