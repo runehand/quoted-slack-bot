@@ -336,7 +336,7 @@ async function postSubmissionMessage(
   teamId: string,
   userId: string
 ): Promise<void> {
-  recordActionLog({
+  await appendActionLog({
     action: "slack.reply_delivery",
     source: "slack",
     status: "ok",
@@ -353,7 +353,7 @@ async function postSubmissionMessage(
   });
 
   try {
-    await slackClient.chat.postMessage({
+    const response = await slackClient.chat.postMessage({
       channel: channelId,
       text:
         `${input.mode === "experts" ? "Call for Experts" : "Call for Products"} submitted.\n` +
@@ -363,7 +363,7 @@ async function postSubmissionMessage(
         `View request: ${copy.requestUrl}`
     });
 
-    recordActionLog({
+    await appendActionLog({
       action: "slack.reply_delivery",
       source: "slack",
       status: "ok",
@@ -375,11 +375,14 @@ async function postSubmissionMessage(
         requestId: copy.requestId,
         requestUrl: copy.requestUrl,
         mode: input.mode,
-        title: input.title
+        title: input.title,
+        slackChannel: response.channel ?? null,
+        slackTs: response.ts ?? null
       }
     });
   } catch (error) {
-    recordActionLog({
+    const slackError = error instanceof Error ? error.message : String(error);
+    await appendActionLog({
       action: "slack.reply_delivery",
       source: "slack",
       status: "error",
@@ -392,7 +395,7 @@ async function postSubmissionMessage(
         requestUrl: copy.requestUrl,
         mode: input.mode,
         title: input.title,
-        error: error instanceof Error ? error.message : String(error)
+        error: slackError
       }
     });
   }
