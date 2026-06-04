@@ -30,18 +30,68 @@ function makeRequestId(): string {
   return `demo-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function selectPost(mode: DemoRequestInput["mode"], title: string, posts: DemoPost[]): DemoPost {
-  const byMode = posts.find((post) => post.mode === mode && post.title.toLowerCase().includes(title.toLowerCase()));
-  if (byMode) {
-    return byMode;
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeSearch(value: string): string[] {
+  return normalizeText(value)
+    .split(" ")
+    .filter((token) => token.length > 1);
+}
+
+function scorePost(post: DemoPost, searchTokens: string[], mode: DemoRequestInput["mode"]): number {
+  const haystack = normalizeText(
+    [
+      post.title,
+      post.summary,
+      post.requestedBy,
+      post.deadline,
+      post.category,
+      post.status,
+      post.mode,
+      mode
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  if (!searchTokens.length) {
+    return post.mode === mode ? 10 : 1;
   }
 
-  const byModeOnly = posts.find((post) => post.mode === mode);
-  if (byModeOnly) {
-    return byModeOnly;
+  let score = post.mode === mode ? 5 : 0;
+  for (const token of searchTokens) {
+    if (haystack.includes(token)) {
+      score += token.length > 3 ? 4 : 2;
+    }
   }
 
-  return posts[0];
+  if (normalizeText(post.title).includes(searchTokens.join(" "))) {
+    score += 8;
+  }
+
+  return score;
+}
+
+function selectPost(mode: DemoRequestInput["mode"], input: DemoRequestInput, posts: DemoPost[]): DemoPost {
+  const searchText = [input.title, input.description, input.audience, input.category, input.deadline].filter(Boolean).join(" ");
+  const searchTokens = tokenizeSearch(searchText);
+  const ranked = posts
+    .map((post) => ({ post, score: scorePost(post, searchTokens, mode) }))
+    .sort((left, right) => right.score - left.score);
+
+  const best = ranked.find((entry) => entry.score > 0 && entry.post.mode === mode);
+  if (best) {
+    return best.post;
+  }
+
+  const anyBest = ranked[0];
+  return anyBest?.post ?? posts[0];
 }
 
 export function getDemoPosts(): DemoPost[] {
@@ -56,17 +106,17 @@ export function buildDemoCopy(
   const requestId = makeRequestId();
   const requestUrl = `${requestBaseUrl.replace(/\/$/, "")}/${requestId}`;
   const data = loadDemoData();
-  const post = selectPost(input.mode, input.title, data.posts);
+  const post = selectPost(input.mode, input, data.posts);
   const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
   const lookingForLabel = input.mode === "experts" ? "Looking for" : "What product are you looking for?";
-  const summary = input.audience.trim() || post.summary;
+  const summary = input.audience.trim() || input.description.trim() || post.summary;
   const requestorName = linkedUser?.name ?? "Qwoted user";
 
   return {
     requestId,
     requestUrl,
     confirmation: `OK. Your ${requestLabel} request has been submitted.\n\nTopic: ${input.title}\n${lookingForLabel}: ${summary}\nDeadline: ${input.deadline}\nCategory: ${input.category}\n\nRequested by: ${requestorName}\nView request: ${requestUrl}`,
-    notification: `New pitch received for your request: ${input.title}\n\n${post.summary}\nView in Qwoted: ${requestUrl}`
+    notification: `New pitch received for your request: ${input.title}\n\nMatched post: ${post.title}\n${post.summary}\nView in Qwoted: ${requestUrl}`
   };
 }
 
