@@ -1,5 +1,5 @@
-import { getDemoUsers } from "../src/demo-data";
+import { listUsers } from "../src/auth-store";
 
-export function GET(): Response {
-  return Response.json({ users: getDemoUsers() });
+export async function GET(): Promise<Response> {
+  return Response.json({ users: await listUsers() });
 }

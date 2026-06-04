@@ -1,48 +1,26 @@
-import mockUsers from "./data/mock-users.json";
-import { LinkedUser } from "./types";
-
 type AppConfig = {
   slackBotToken: string;
   slackSigningSecret: string;
+  mongoUri: string;
+  appBaseUrl: string;
   demoRequestBaseUrl: string;
-  demoConnectUrl: string;
-  linkedUsers: LinkedUser[];
+  sessionCookieName: string;
 };
-
-function readLinkedUsers(): LinkedUser[] {
-  const fileUsers = mockUsers as LinkedUser[];
-  const envValue = process.env.MOCK_LINKED_USERS_JSON;
-
-  if (!envValue) {
-    return fileUsers;
-  }
-
-  try {
-    const envUsers = JSON.parse(envValue) as LinkedUser[];
-    return [...fileUsers, ...envUsers];
-  } catch {
-    return fileUsers;
-  }
-}
 
 export function getConfig(): AppConfig {
   const slackBotToken = process.env.SLACK_BOT_TOKEN ?? "";
   const slackSigningSecret = process.env.SLACK_SIGNING_SECRET ?? "";
+  const mongoUri = process.env.MONGODB_URI ?? "";
+  const appBaseUrl =
+    process.env.APP_BASE_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
   return {
     slackBotToken,
     slackSigningSecret,
+    mongoUri,
+    appBaseUrl,
     demoRequestBaseUrl: process.env.DEMO_REQUEST_BASE_URL ?? "https://demo.qwoted.com/request",
-    demoConnectUrl: process.env.DEMO_CONNECT_URL ?? "https://demo.qwoted.com/connect",
-    linkedUsers: readLinkedUsers()
+    sessionCookieName: process.env.SESSION_COOKIE_NAME ?? "qwoted_session"
   };
-}
-
-export function findLinkedUser(teamId: string | undefined, userId: string | undefined): LinkedUser | null {
-  if (!teamId || !userId) {
-    return null;
-  }
-
-  const config = getConfig();
-  return config.linkedUsers.find((user) => user.slack_team_id === teamId && user.slack_user_id === userId) ?? null;
 }

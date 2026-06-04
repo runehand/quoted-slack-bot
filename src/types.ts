@@ -1,18 +1,24 @@
 export type RequestMode = "experts" | "products";
 
 export type LinkedUser = {
-  slack_team_id: string;
-  slack_user_id: string;
-  qwoted_user_id: string;
+  id: string;
   email: string;
+  name: string;
+  qwotedUserId: string;
+  slackTeamId: string;
+  slackUserId: string;
 };
 
-export type DemoUser = {
+export type RegisteredUser = {
   id: string;
-  name: string;
-  role: string;
   email: string;
-  expertise: string[];
+  name: string;
+  qwotedUserId: string;
+  slackTeamId: string | null;
+  slackUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  linkedAt: string | null;
 };
 
 export type DemoPost = {
