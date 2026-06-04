@@ -6,8 +6,11 @@ type ApiInfo = {
   endpoints?: Record<string, string>;
 };
 
-type MockData = {
+type UsersResponse = {
   users?: Array<{ id: string }>;
+};
+
+type PostsResponse = {
   posts?: Array<{ id: string }>;
 };
 
@@ -57,9 +60,10 @@ export function StatusBoard() {
 
     async function refresh() {
       try {
-        const [health, mockData, apiRoot] = await Promise.all([
+        const [health, usersData, postsData, apiRoot] = await Promise.all([
           fetchJson<{ ok: boolean }>("/api/health"),
-          fetchJson<MockData>("/api/mock-data"),
+          fetchJson<UsersResponse>("/api/users"),
+          fetchJson<PostsResponse>("/api/posts"),
           fetchJson<ApiInfo>("/api")
         ]);
 
@@ -67,8 +71,8 @@ export function StatusBoard() {
           return;
         }
 
-        const userCount = mockData.users?.length ?? 0;
-        const postCount = mockData.posts?.length ?? 0;
+        const userCount = usersData.users?.length ?? 0;
+        const postCount = postsData.posts?.length ?? 0;
 
         setState({
           ready: true,
@@ -123,19 +127,22 @@ export function StatusBoard() {
             <a className="pill" href="/api">
               API root
             </a>
-            <a className="pill" href="/api/mock-data">
-              Mock data JSON
+            <a className="pill" href="/api/catalog">
+              Catalog JSON
             </a>
             <a className="pill" href="/auth">
               Sign in
+            </a>
+            <a className="pill" href="/posts">
+              Posts
             </a>
             <a className="pill" href="/debug">
               Debug dashboard
             </a>
           </div>
-          <h1>Qwoted Slack Bot Demo</h1>
+          <h1>Qwoted Request Center</h1>
           <p className="muted">
-            This dashboard confirms the deployment is alive and the API route behind the Slack demo is responding.
+            This dashboard confirms the deployment is alive and the API behind the Slack workflow is responding.
           </p>
           <div className="muted">
             Slack command endpoint: <code>/api/slack/commands</code>
@@ -163,11 +170,11 @@ export function StatusBoard() {
           <h2 className={state.healthTone}>{state.healthText}</h2>
         </article>
         <article className="panel card">
-          <p className="eyebrow">Registered Users</p>
+          <p className="eyebrow">Registered Accounts</p>
           <h2 className={state.usersTone}>{state.usersText}</h2>
         </article>
         <article className="panel card">
-          <p className="eyebrow">Demo Posts</p>
+          <p className="eyebrow">Posts</p>
           <h2 className={state.postsTone}>{state.postsText}</h2>
         </article>
       </section>
@@ -192,10 +199,10 @@ export function StatusBoard() {
             </tr>
             <tr>
               <td>
-                <code>/api/mock-data</code>
+                <code>/api/catalog</code>
               </td>
-              <td>Registered users and seeded posts</td>
-              <td>Returns Mongo-backed users and 10 posts</td>
+              <td>Live aggregate data</td>
+              <td>Returns Mongo-backed users and posts</td>
             </tr>
             <tr>
               <td>

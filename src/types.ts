@@ -23,6 +23,7 @@ export type RegisteredUser = {
 
 export type DemoPost = {
   id: string;
+  ownerUserId?: string;
   title: string;
   summary: string;
   mode: RequestMode;
@@ -30,6 +31,8 @@ export type DemoPost = {
   deadline: string;
   category: string;
   status: "open" | "answered" | "pending";
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type DemoRequestInput = {
@@ -47,6 +50,6 @@ export type DemoCopy = {
   notification: string;
   requestId: string;
   requestUrl: string;
-  matchedPost: DemoPost;
+  matchedPost: DemoPost | null;
   matchedPostScore: number;
 };

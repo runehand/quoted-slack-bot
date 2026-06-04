@@ -1,38 +1,13 @@
-import mockData from "./data/mock-data.json";
+import { listPosts } from "./auth-store";
 import { DemoCopy, DemoPost, DemoRequestInput } from "./types";
-
-type DemoData = {
-  posts: DemoPost[];
-};
 
 export type RequestMatchAnalysis = {
   searchText: string;
   searchTokens: string[];
-  matchedPost: DemoPost;
+  matchedPost: DemoPost | null;
   matchedPostScore: number;
   allScores: Array<{ postId: string; title: string; score: number; mode: DemoPost["mode"] }>;
 };
-
-function loadDemoData(): DemoData {
-  if (mockData?.posts?.length) {
-    return mockData as DemoData;
-  }
-
-  return {
-    posts: [
-      {
-        id: "post-001",
-        title: "Gas prices and household budgets",
-        summary: "A reporter is looking for economists or energy experts to explain the latest price changes.",
-        mode: "experts",
-        requestedBy: "Qwoted user",
-        deadline: "Friday",
-        category: "Newsroom",
-        status: "open"
-      }
-    ]
-  };
-}
 
 function makeRequestId(): string {
   return `demo-${Math.random().toString(36).slice(2, 10)}`;
@@ -97,13 +72,11 @@ export function analyzeRequestMatch(mode: DemoRequestInput["mode"], input: DemoR
     .sort((left, right) => right.score - left.score);
 
   const best = ranked.find((entry) => entry.score > 0 && entry.post.mode === mode) ?? ranked[0];
-  const fallback = posts[0];
-  const matchedPost = best?.post ?? fallback;
 
   return {
     searchText,
     searchTokens,
-    matchedPost,
+    matchedPost: best?.post ?? null,
     matchedPostScore: best?.score ?? 0,
     allScores: ranked.map((entry) => ({
       postId: entry.post.id,
@@ -114,39 +87,70 @@ export function analyzeRequestMatch(mode: DemoRequestInput["mode"], input: DemoR
   };
 }
 
-export function getDemoPosts(): DemoPost[] {
-  return loadDemoData().posts;
-}
-
-export function buildDemoCopy(
+export async function buildDemoCopy(
   input: DemoRequestInput,
   requestBaseUrl: string,
-  linkedUser?: { name: string } | null
-): DemoCopy {
+  linkedUser?: { name: string } | null,
+  posts: DemoPost[] = []
+): Promise<DemoCopy> {
   const requestId = makeRequestId();
   const requestUrl = `${requestBaseUrl.replace(/\/$/, "")}/${requestId}`;
-  const data = loadDemoData();
-  const match = analyzeRequestMatch(input.mode, input, data.posts);
-  const post = match.matchedPost;
+  const catalog = posts.length ? posts : await listPosts();
+  const match = analyzeRequestMatch(input.mode, input, catalog);
   const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
   const lookingForLabel = input.mode === "experts" ? "Looking for" : "What product are you looking for?";
-  const summary = input.audience.trim() || input.description.trim() || post.summary;
+  const summary = input.audience.trim() || input.description.trim();
   const requestorName = linkedUser?.name ?? "Qwoted user";
+  const matchedPost = match.matchedPost;
+
+  const confirmationLines = [
+    `OK. Your ${requestLabel} request has been submitted.`,
+    "",
+    `Topic: ${input.title}`,
+    `${lookingForLabel}: ${summary || "Not provided"}`,
+    `Deadline: ${input.deadline || "Not provided"}`,
+    `Category: ${input.category || "Not provided"}`,
+    "",
+    `Requested by: ${requestorName}`,
+    `View request: ${requestUrl}`
+  ];
+
+  if (matchedPost && match.matchedPostScore > 0) {
+    confirmationLines.push("", `Matched candidate: ${matchedPost.title}`, `Score: ${match.matchedPostScore}`);
+  } else {
+    confirmationLines.push("", "No live candidate matched yet.", "Add posts in the Posts section to start matching.");
+  }
+
+  const notificationLines = matchedPost
+    ? [
+        `New pitch received for your request: ${input.title}`,
+        "",
+        `Matched post: ${matchedPost.title}`,
+        matchedPost.summary,
+        `View in Qwoted: ${requestUrl}`
+      ]
+    : [
+        `New pitch received for your request: ${input.title}`,
+        "",
+        "No live candidate matched yet.",
+        "Create a post in the Posts section to start receiving replies.",
+        `View in Qwoted: ${requestUrl}`
+      ];
 
   return {
     requestId,
     requestUrl,
-    confirmation: `OK. Your ${requestLabel} request has been submitted.\n\nTopic: ${input.title}\n${lookingForLabel}: ${summary}\nDeadline: ${input.deadline}\nCategory: ${input.category}\n\nRequested by: ${requestorName}\nView request: ${requestUrl}`,
-    notification: `New pitch received for your request: ${input.title}\n\nMatched post: ${post.title}\n${post.summary}\nView in Qwoted: ${requestUrl}`,
-    matchedPost: post,
+    confirmation: confirmationLines.join("\n"),
+    notification: notificationLines.join("\n"),
+    matchedPost,
     matchedPostScore: match.matchedPostScore
   };
 }
 
-export function buildMockApiResponse(users: Array<{ id: string; email: string; name: string }>) {
-  const data = loadDemoData();
+export async function buildMockApiResponse(users: Array<{ id: string; email: string; name: string }>) {
+  const posts = await listPosts();
   return {
     users,
-    posts: data.posts
+    posts
   };
 }

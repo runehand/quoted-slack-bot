@@ -6,10 +6,10 @@ What it includes:
 
 - `/quoted` Slack command
 - MongoDB-backed signup, sign-in, and Slack linking
-- static website pages for status, auth, and connect
+- product-style website pages for status, auth, connect, and posts
 - MongoDB-backed action logs and a debug dashboard
 - one Vercel API route for all backend endpoints
-- demo confirmation and notification messages
+- live post matching against MongoDB data
 
 ## Architecture
 
@@ -28,11 +28,12 @@ That one route handles:
 - `/api/demo-notification`
 - `/api/users`
 - `/api/posts`
+- `/api/catalog`
 - `/api/mock-data`
 - `/api/logs`
 - `/api`
 
-The pages at `/`, `/status`, `/auth`, `/connect`, and `/debug` are normal Next.js pages.
+The pages at `/`, `/status`, `/auth`, `/connect`, `/posts`, and `/debug` are normal Next.js pages.
 
 ## Flow
 
@@ -43,7 +44,8 @@ The pages at `/`, `/status`, `/auth`, `/connect`, and `/debug` are normal Next.j
 5. The connect page sends the user to `/auth`
 6. Sign up or sign in creates a MongoDB user session
 7. The connect page links the Slack team/user IDs to that account
-8. The Slack bot then opens the modal and returns demo confirmation text
+8. The posts page lets a signed-in user create live posts in MongoDB
+9. The Slack bot opens the modal and matches against the live post catalog
 
 ## Environment Variables
 
@@ -71,6 +73,7 @@ Open:
 - `http://localhost:3000/` for the status page
 - `http://localhost:3000/auth`
 - `http://localhost:3000/connect`
+- `http://localhost:3000/posts`
 - `http://localhost:3000/debug`
 
 ## Slack App Setup
@@ -102,9 +105,9 @@ Action logs are stored in MongoDB and can be viewed at `/debug` or fetched from 
 
 ## Demo Data
 
-Demo posts are seeded in `src/data/mock-data.json`.
+Posts are stored in MongoDB and created from the `/posts` page.
 
-The bot returns deterministic demo confirmation and notification text. It does not call a real Qwoted API.
+The bot returns deterministic confirmation text, but the matched candidate comes from live MongoDB post data.
 
 ## Deployment Notes
 

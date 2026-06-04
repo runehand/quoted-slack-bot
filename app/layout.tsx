@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Qwoted Slack Bot Demo",
-  description: "Slack bot demo with MongoDB-backed auth and a single Vercel API route."
+  title: "Qwoted Request Center",
+  description: "Newsroom request workflow with Slack integration, MongoDB auth, and live posts."
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
