@@ -2,7 +2,17 @@ import crypto from "node:crypto";
 import { WebClient, type View } from "@slack/web-api";
 import { buildDemoCopy, buildMockApiResponse, getDemoPosts } from "./demo-data";
 import { getConfig } from "./config";
-import { findLinkedUser, listUsers } from "./auth-store";
+import {
+  authenticateUser,
+  createSession,
+  createUser,
+  deleteSession,
+  findLinkedUser,
+  findUserBySession,
+  linkSlackAccount,
+  listUsers
+} from "./auth-store";
+import { buildCookie, clearCookie, parseCookies, redirectResponse } from "./http";
 import { DemoRequestInput, RequestMode } from "./types";
 
 type ApiGatewayEvent = {
@@ -374,25 +384,105 @@ export async function handleApiRoute(
   method: string,
   body: string | undefined,
   headers: Record<string, string | undefined>
-): Promise<{ statusCode: number; body: string; headers: Record<string, string> }> {
+): Promise<Response> {
   const config = getConfig();
 
-  if (route === "/health" && method === "GET") {
-    return {
-      statusCode: 200,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ok: true })
-    };
+  if (route === "/api/health" && method === "GET") {
+    return Response.json({ ok: true });
   }
 
-  if (route === "/slack/commands" && method === "POST") {
+  if (route === "/api/auth/register" && method === "POST") {
+    const form = parseBody(body ?? "");
+    try {
+      const user = await createUser({
+        name: form.name ?? "",
+        email: form.email ?? "",
+        password: form.password ?? ""
+      });
+      const sessionToken = await createSession(user.id);
+      const secure = headers["x-forwarded-proto"] === "https" || new URL(config.appBaseUrl).protocol === "https:";
+      return redirectResponse(form.next ?? "/connect", {
+        "set-cookie": buildCookie(config.sessionCookieName, sessionToken, {
+          httpOnly: true,
+          secure,
+          maxAgeSeconds: 60 * 60 * 24 * 7
+        })
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to create account.";
+      return redirectResponse(`/auth?error=${encodeURIComponent(message)}`);
+    }
+  }
+
+  if (route === "/api/auth/login" && method === "POST") {
+    const form = parseBody(body ?? "");
+    const user = await authenticateUser(form.email ?? "", form.password ?? "");
+    if (!user) {
+      return redirectResponse(`/auth?error=${encodeURIComponent("Invalid email or password.")}`);
+    }
+
+    const sessionToken = await createSession(user.id);
+    const secure = headers["x-forwarded-proto"] === "https" || new URL(config.appBaseUrl).protocol === "https:";
+    return redirectResponse(form.next ?? "/connect", {
+      "set-cookie": buildCookie(config.sessionCookieName, sessionToken, {
+        httpOnly: true,
+        secure,
+        maxAgeSeconds: 60 * 60 * 24 * 7
+      })
+    });
+  }
+
+  if (route === "/api/auth/logout" && method === "POST") {
+    const cookies = parseCookies(headers.cookie);
+    await deleteSession(cookies[config.sessionCookieName]);
+    return redirectResponse("/auth", {
+      "set-cookie": clearCookie(config.sessionCookieName)
+    });
+  }
+
+  if (route === "/api/link-slack" && method === "POST") {
+    const cookies = parseCookies(headers.cookie);
+    const currentUser = await findUserBySession(cookies[config.sessionCookieName]);
+    if (!currentUser) {
+      return redirectResponse("/auth?error=Please sign in first.");
+    }
+
+    const form = parseBody(body ?? "");
+    const slackTeamId = form.slackTeamId ?? form.slack_team_id ?? "";
+    const slackUserId = form.slackUserId ?? form.slack_user_id ?? "";
+    const next = form.next ?? `/connect?slack_team_id=${encodeURIComponent(slackTeamId)}&slack_user_id=${encodeURIComponent(slackUserId)}`;
+
+    if (!slackTeamId || !slackUserId) {
+      return redirectResponse(`/connect?error=${encodeURIComponent("Missing Slack identifiers.")}`);
+    }
+
+    const linked = await linkSlackAccount({
+      userId: currentUser.id,
+      slackTeamId,
+      slackUserId
+    });
+
+    if (!linked) {
+      return redirectResponse(`/connect?error=${encodeURIComponent("Unable to link the Slack account.")}`);
+    }
+
+    return redirectResponse(`${next}${next.includes("?") ? "&" : "?"}success=${encodeURIComponent("Slack account linked.")}`);
+  }
+
+  if (route === "/api/me" && method === "GET") {
+    const cookies = parseCookies(headers.cookie);
+    const user = await findUserBySession(cookies[config.sessionCookieName]);
+    return Response.json({ user });
+  }
+
+  if (route === "/api/slack/commands" && method === "POST") {
     const rawBody = body ?? "";
     if (!verifySlackRequest(config.slackSigningSecret, headers["x-slack-request-timestamp"], rawBody, headers["x-slack-signature"])) {
-      return { statusCode: 401, headers: { "content-type": "application/json" }, body: JSON.stringify({ error: "invalid signature" }) };
+      return Response.json({ error: "invalid signature" }, { status: 401 });
     }
 
     const command = parseBody(rawBody);
-    return handleSlashCommand(
+    const result = await handleSlashCommand(
       {
         command: command.command,
         team_id: command.team_id,
@@ -402,17 +492,25 @@ export async function handleApiRoute(
       },
       config
     );
+    return new Response(result.body, {
+      status: result.statusCode,
+      headers: result.headers
+    });
   }
 
-  if (route === "/slack/interactions" && method === "POST") {
+  if (route === "/api/slack/interactions" && method === "POST") {
     const rawBody = body ?? "";
     if (!verifySlackRequest(config.slackSigningSecret, headers["x-slack-request-timestamp"], rawBody, headers["x-slack-signature"])) {
-      return { statusCode: 401, headers: { "content-type": "application/json" }, body: JSON.stringify({ error: "invalid signature" }) };
+      return Response.json({ error: "invalid signature" }, { status: 401 });
     }
 
     const params = parseBody(rawBody);
     const payload = JSON.parse(params.payload) as SlackInteractionPayload;
-    return handleInteraction(payload, config);
+    const result = await handleInteraction(payload, config);
+    return new Response(result.body, {
+      status: result.statusCode,
+      headers: result.headers
+    });
   }
 
   if (route === "/api/demo-notification" && method === "POST") {
@@ -428,61 +526,42 @@ export async function handleApiRoute(
     };
 
     const copy = buildDemoCopy(input, config.demoRequestBaseUrl);
-    return {
-      statusCode: 200,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(copy)
-    };
+    return Response.json(copy);
   }
 
   if (route === "/api/users" && method === "GET") {
-    return {
-      statusCode: 200,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ users: await listUsers() })
-    };
+    return Response.json({ users: await listUsers() });
   }
 
   if (route === "/api/posts" && method === "GET") {
-    return {
-      statusCode: 200,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ posts: getDemoPosts() })
-    };
+    return Response.json({ posts: getDemoPosts() });
   }
 
   if (route === "/api/mock-data" && method === "GET") {
-    return {
-      statusCode: 200,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(buildMockApiResponse(await listUsers()))
-    };
+    return Response.json(buildMockApiResponse(await listUsers()));
   }
 
-  if ((route === "/" || route === "/api") && method === "GET") {
-    return {
-      statusCode: 200,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: "Qwoted Slack Bot Demo",
-        endpoints: {
-          health: "/api/health",
-          users: "/api/users",
-          posts: "/api/posts",
-          mockData: "/api/mock-data",
-          slackCommands: "/api/slack/commands",
-          slackInteractions: "/api/slack/interactions",
-          demoNotification: "/api/demo-notification",
-          auth: "/auth",
-          connect: "/connect"
-        }
-      })
-    };
+  if (route === "/api" && method === "GET") {
+    return Response.json({
+      name: "Qwoted Slack Bot Demo",
+      endpoints: {
+        health: "/api/health",
+        users: "/api/users",
+        posts: "/api/posts",
+        mockData: "/api/mock-data",
+        slackCommands: "/api/slack/commands",
+        slackInteractions: "/api/slack/interactions",
+        demoNotification: "/api/demo-notification",
+        authRegister: "/api/auth/register",
+        authLogin: "/api/auth/login",
+        authLogout: "/api/auth/logout",
+        linkSlack: "/api/link-slack",
+        me: "/api/me",
+        auth: "/auth",
+        connect: "/connect"
+      }
+    });
   }
 
-  return {
-    statusCode: 404,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ error: "not found", route, method })
-  };
+  return Response.json({ error: "not found", route, method }, { status: 404 });
 }

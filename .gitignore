@@ -1,8 +1,7 @@
 node_modules/
 dist/
+.next/
 .env
 .slack.info
 .DS_Store
-api/**/*.js
-api/**/*.js.map
 .slack.info
