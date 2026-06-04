@@ -1,13 +1,197 @@
-import fs from "node:fs";
-import path from "node:path";
+const statusHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Qwoted Slack Bot Status</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b1020;
+        --panel: rgba(16, 24, 40, 0.88);
+        --panel-border: rgba(148, 163, 184, 0.18);
+        --text: #e5eefc;
+        --muted: #94a3b8;
+        --accent: #7dd3fc;
+        --accent-2: #a78bfa;
+        --good: #34d399;
+        --warn: #fbbf24;
+        --bad: #f87171;
+      }
 
-function getStatusHtml(): string {
-  const filePath = path.join(process.cwd(), "index.html");
-  return fs.readFileSync(filePath, "utf8");
-}
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(125, 211, 252, 0.18), transparent 30%),
+          radial-gradient(circle at top right, rgba(167, 139, 250, 0.16), transparent 28%),
+          linear-gradient(180deg, #0b1020 0%, #090d18 100%);
+      }
+      .shell { max-width: 1080px; margin: 0 auto; padding: 32px 20px 56px; }
+      .hero { display: grid; gap: 18px; grid-template-columns: 1.4fr 0.9fr; align-items: start; margin-bottom: 20px; }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 22px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(14px);
+      }
+      .card { padding: 24px; }
+      h1 { margin: 0 0 10px; font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1; letter-spacing: -0.04em; }
+      .lead { margin: 0; color: var(--muted); max-width: 62ch; line-height: 1.6; }
+      .pill-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+      .pill {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 10px 14px; border-radius: 999px;
+        border: 1px solid var(--panel-border); background: rgba(255, 255, 255, 0.04);
+        color: var(--text); text-decoration: none; font-size: 0.92rem;
+      }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 12px currentColor; }
+      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
+      .status { padding: 18px; }
+      .label { margin: 0 0 8px; color: var(--muted); font-size: 0.84rem; text-transform: uppercase; letter-spacing: 0.08em; }
+      .value { margin: 0; font-size: 1.1rem; font-weight: 700; }
+      .value.good { color: var(--good); }
+      .value.bad { color: var(--bad); }
+      .value.warn { color: var(--warn); }
+      .section { margin-top: 18px; }
+      .section h2 { margin: 0 0 12px; font-size: 1rem; color: var(--text); }
+      table { width: 100%; border-collapse: collapse; overflow: hidden; }
+      th, td { text-align: left; padding: 12px 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); font-size: 0.95rem; }
+      th { color: var(--muted); font-weight: 600; }
+      .endpoint { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      .footer { margin-top: 18px; color: var(--muted); font-size: 0.92rem; }
+      @media (max-width: 900px) { .hero, .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="panel card">
+          <div class="pill-row">
+            <span class="pill"><span class="dot" id="overall-dot"></span><span id="overall-text">Checking status...</span></span>
+            <a class="pill" href="/api">API root</a>
+            <a class="pill" href="/api/mock-data">Mock data JSON</a>
+          </div>
+          <h1>Qwoted Slack Bot Demo</h1>
+          <p class="lead">
+            This dashboard confirms the Vercel deployment is alive and the API routes behind the Slack demo are responding.
+            It also gives you a quick view of the seeded mock data used by the bot.
+          </p>
+          <div class="footer">
+            Slash command endpoint: <span class="endpoint">/api/slack/commands</span>
+            <br />
+            Interactivity endpoint: <span class="endpoint">/api/slack/interactions</span>
+          </div>
+        </div>
+        <div class="panel card">
+          <p class="label">Deployment</p>
+          <p class="value" id="deploy-value">Loading...</p>
+          <p class="label" style="margin-top: 16px;">Last check</p>
+          <p class="value" id="checked-value">Loading...</p>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="panel status"><p class="label">Health</p><p class="value warn" id="health-value">Checking...</p></article>
+        <article class="panel status"><p class="label">Mock Users</p><p class="value warn" id="users-value">Checking...</p></article>
+        <article class="panel status"><p class="label">Mock Posts</p><p class="value warn" id="posts-value">Checking...</p></article>
+      </section>
+
+      <section class="panel card section">
+        <h2>API Routes</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Route</th>
+              <th>Purpose</th>
+              <th>Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="endpoint">/api/health</span></td>
+              <td>Health check</td>
+              <td>Should return `{ "ok": true }`</td>
+            </tr>
+            <tr>
+              <td><span class="endpoint">/api/mock-data</span></td>
+              <td>Seeded users and posts</td>
+              <td>Returns 5 users and 10 posts</td>
+            </tr>
+            <tr>
+              <td><span class="endpoint">/api/slack/commands</span></td>
+              <td>Slash command webhook</td>
+              <td>Slack POST target for `/quoted`</td>
+            </tr>
+            <tr>
+              <td><span class="endpoint">/api/slack/interactions</span></td>
+              <td>Button and modal webhook</td>
+              <td>Slack POST target for interactivity</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <script>
+      const els = {
+        overallDot: document.getElementById("overall-dot"),
+        overallText: document.getElementById("overall-text"),
+        deployValue: document.getElementById("deploy-value"),
+        checkedValue: document.getElementById("checked-value"),
+        healthValue: document.getElementById("health-value"),
+        usersValue: document.getElementById("users-value"),
+        postsValue: document.getElementById("posts-value")
+      };
+
+      function setStatus(element, text, tone) {
+        element.textContent = text;
+        element.className = `value ${tone}`;
+      }
+
+      async function fetchJson(url) {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`${url} -> ${response.status}`);
+        }
+        return response.json();
+      }
+
+      async function refresh() {
+        const now = new Date();
+        els.deployValue.textContent = location.hostname || "Local preview";
+        els.checkedValue.textContent = now.toLocaleString();
+
+        try {
+          const [health, mockData] = await Promise.all([fetchJson("/api/health"), fetchJson("/api/mock-data")]);
+          const userCount = Array.isArray(mockData.users) ? mockData.users.length : 0;
+          const postCount = Array.isArray(mockData.posts) ? mockData.posts.length : 0;
+          setStatus(els.healthValue, health.ok ? "Healthy" : "Unhealthy", health.ok ? "good" : "bad");
+          setStatus(els.usersValue, `${userCount} users`, userCount >= 5 ? "good" : "warn");
+          setStatus(els.postsValue, `${postCount} posts`, postCount >= 10 ? "good" : "warn");
+          els.overallDot.style.background = "var(--good)";
+          els.overallText.textContent = "Deployment healthy";
+        } catch {
+          setStatus(els.healthValue, "Unavailable", "bad");
+          setStatus(els.usersValue, "Unavailable", "bad");
+          setStatus(els.postsValue, "Unavailable", "bad");
+          els.overallDot.style.background = "var(--bad)";
+          els.overallText.textContent = "API check failed";
+        }
+      }
+
+      refresh();
+      setInterval(refresh, 15000);
+    </script>
+  </body>
+</html>`;
 
 export default async function handler(): Promise<Response> {
-  return new Response(getStatusHtml(), {
+  return new Response(statusHtml, {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
