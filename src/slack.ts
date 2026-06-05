@@ -220,8 +220,7 @@ function buildModal(mode: RequestMode, teamId: string, userId: string, channelId
 
 function buildSuccessView(
   input: DemoRequestInput,
-  copy: Awaited<ReturnType<typeof buildDemoCopy>>,
-  appBaseUrl: string
+  copy: Awaited<ReturnType<typeof buildDemoCopy>>
 ): View {
   const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
   const matchedPost = copy.matchedPost;
@@ -230,21 +229,21 @@ function buildSuccessView(
   const candidateScore = matchedPost ? String(copy.matchedPostScore) : "—";
   return {
     type: "modal",
-    title: { type: "plain_text", text: "Request ready" },
+    title: { type: "plain_text", text: "Request received" },
     close: { type: "plain_text", text: "Close" },
     blocks: [
       {
         type: "header",
         text: {
           type: "plain_text",
-          text: "Request submitted"
+          text: "Request received"
         }
       },
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*${requestLabel}* was submitted successfully.`
+          text: `*${requestLabel}* has been received and matched.`
         }
       },
       {
@@ -275,21 +274,6 @@ function buildSuccessView(
           text: `*Candidate summary*\n${candidateSummary}`
         }
       },
-      {
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: { type: "plain_text", text: "Open Request" },
-            url: copy.requestUrl
-          },
-          {
-            type: "button",
-            text: { type: "plain_text", text: "Create another" },
-            url: new URL("/posts", appBaseUrl).toString()
-          }
-        ]
-      }
     ]
   } as View;
 }
@@ -376,8 +360,7 @@ async function postSubmissionMessage(
   copy: Awaited<ReturnType<typeof buildDemoCopy>>,
   channelId: string,
   teamId: string,
-  userId: string,
-  appBaseUrl: string
+  userId: string
 ): Promise<void> {
   const matchedPost = copy.matchedPost;
   const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
@@ -412,14 +395,14 @@ async function postSubmissionMessage(
           type: "header",
           text: {
             type: "plain_text",
-            text: "Request submitted"
+            text: "Request received"
           }
         },
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${requestLabel}* for *${requestTitle}* is live.`
+            text: `*${requestLabel} received* for *${requestTitle}*.`
           }
         },
         {
@@ -450,21 +433,6 @@ async function postSubmissionMessage(
             text: `*Candidate summary*\n${candidateSummary}\n\n*Request details*\n${requestSummary}`
           }
         },
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "Open Request" },
-              url: copy.requestUrl
-            },
-            {
-              type: "button",
-              text: { type: "plain_text", text: "View Posts" },
-              url: new URL("/posts", appBaseUrl).toString()
-            }
-          ]
-        }
       ]
     });
 
@@ -718,8 +686,7 @@ export async function handleInteraction(
         copy,
         privateMetadata.channelId,
         privateMetadata.teamId,
-        privateMetadata.userId,
-        config.appBaseUrl
+        privateMetadata.userId
       ).catch(() => undefined);
     }
 
@@ -727,8 +694,7 @@ export async function handleInteraction(
       statusCode: 200,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        response_action: "update",
-        view: buildSuccessView(requestInput, copy, config.appBaseUrl)
+        response_action: "clear"
       })
     };
   }
