@@ -220,28 +220,59 @@ function buildModal(mode: RequestMode, teamId: string, userId: string, channelId
 
 function buildSuccessView(
   input: DemoRequestInput,
-  copy: Awaited<ReturnType<typeof buildDemoCopy>>
+  copy: Awaited<ReturnType<typeof buildDemoCopy>>,
+  appBaseUrl: string
 ): View {
   const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
   const matchedPost = copy.matchedPost;
-  const matchedSection = matchedPost
-    ? `*Matched candidate:* ${matchedPost.title}\n` +
-      `*Candidate summary:* ${matchedPost.summary}\n` +
-      `*Score:* ${copy.matchedPostScore}\n\n`
-    : `*Matched candidate:* None yet\n*Candidate summary:* Create posts in the Posts section.\n\n`;
+  const candidateTitle = matchedPost?.title ?? "No live candidate yet";
+  const candidateSummary = matchedPost?.summary ?? "Create posts in the Posts section to populate the live catalog.";
+  const candidateScore = matchedPost ? String(copy.matchedPostScore) : "—";
   return {
     type: "modal",
-    title: { type: "plain_text", text: "Submitted" },
-    close: { type: "plain_text", text: "Done" },
+    title: { type: "plain_text", text: "Request ready" },
+    close: { type: "plain_text", text: "Close" },
     blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "Request submitted"
+        }
+      },
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text:
-            `*${requestLabel} submitted*\n\n` +
-            matchedSection +
-            `View request: ${copy.requestUrl}`
+          text: `*${requestLabel}* was submitted successfully.`
+        }
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: `*Topic*\n${input.title || "Not provided"}`
+          },
+          {
+            type: "mrkdwn",
+            text: `*Matched candidate*\n${candidateTitle}`
+          },
+          {
+            type: "mrkdwn",
+            text: `*Deadline*\n${input.deadline || "Not provided"}`
+          },
+          {
+            type: "mrkdwn",
+            text: `*Score*\n${candidateScore}`
+          }
+        ]
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Candidate summary*\n${candidateSummary}`
         }
       },
       {
@@ -251,6 +282,11 @@ function buildSuccessView(
             type: "button",
             text: { type: "plain_text", text: "Open Request" },
             url: copy.requestUrl
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "Create another" },
+            url: new URL("/posts", appBaseUrl).toString()
           }
         ]
       }
@@ -340,9 +376,16 @@ async function postSubmissionMessage(
   copy: Awaited<ReturnType<typeof buildDemoCopy>>,
   channelId: string,
   teamId: string,
-  userId: string
+  userId: string,
+  appBaseUrl: string
 ): Promise<void> {
   const matchedPost = copy.matchedPost;
+  const requestLabel = input.mode === "experts" ? "Call for Experts" : "Call for Products";
+  const requestTitle = input.title || "Untitled request";
+  const candidateTitle = matchedPost?.title ?? "No live candidate yet";
+  const candidateSummary = matchedPost?.summary ?? "Create posts in the Posts section to populate the live catalog.";
+  const candidateScore = matchedPost ? String(copy.matchedPostScore) : "—";
+  const requestSummary = input.description || input.audience || "No additional details provided.";
 
   await appendActionLog({
     action: "slack.reply_delivery",
@@ -361,19 +404,68 @@ async function postSubmissionMessage(
   });
 
   try {
-    const messageText = matchedPost
-      ? `Matched candidate for ${input.mode === "experts" ? "Call for Experts" : "Call for Products"}:\n` +
-        `${matchedPost.title}\n` +
-        `${matchedPost.summary}\n` +
-        `Score: ${copy.matchedPostScore}\n` +
-        `View request: ${copy.requestUrl}`
-      : `Request submitted for ${input.mode === "experts" ? "Call for Experts" : "Call for Products"}.\n` +
-        `No live candidate matched yet.\n` +
-        `View request: ${copy.requestUrl}`;
-
     const response = await slackClient.chat.postMessage({
       channel: channelId,
-      text: messageText
+      text: `${requestLabel} submitted: ${requestTitle}`,
+      blocks: [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: "Request submitted"
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*${requestLabel}* for *${requestTitle}* is live.`
+          }
+        },
+        {
+          type: "section",
+          fields: [
+            {
+              type: "mrkdwn",
+              text: `*Matched candidate*\n${candidateTitle}`
+            },
+            {
+              type: "mrkdwn",
+              text: `*Score*\n${candidateScore}`
+            },
+            {
+              type: "mrkdwn",
+              text: `*Deadline*\n${input.deadline || "Not provided"}`
+            },
+            {
+              type: "mrkdwn",
+              text: `*Category*\n${input.category || "Not provided"}`
+            }
+          ]
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*Candidate summary*\n${candidateSummary}\n\n*Request details*\n${requestSummary}`
+          }
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Open Request" },
+              url: copy.requestUrl
+            },
+            {
+              type: "button",
+              text: { type: "plain_text", text: "View Posts" },
+              url: new URL("/posts", appBaseUrl).toString()
+            }
+          ]
+        }
+      ]
     });
 
     await appendActionLog({
@@ -626,7 +718,8 @@ export async function handleInteraction(
         copy,
         privateMetadata.channelId,
         privateMetadata.teamId,
-        privateMetadata.userId
+        privateMetadata.userId,
+        config.appBaseUrl
       ).catch(() => undefined);
     }
 
@@ -635,7 +728,7 @@ export async function handleInteraction(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         response_action: "update",
-        view: buildSuccessView(requestInput, copy)
+        view: buildSuccessView(requestInput, copy, config.appBaseUrl)
       })
     };
   }
@@ -947,4 +1040,5 @@ export async function handleApiRoute(
 
   return Response.json({ error: "not found", route, method }, { status: 404 });
 }
+
 
